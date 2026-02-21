@@ -4,6 +4,7 @@ from dotenv import load_dotenv
 import os
 from prometheus_remote_writer import RemoteWriter
 import base64
+from datetime import datetime
 import logging
 from gear import Gear, build_distance_payload, build_gears
 
@@ -99,6 +100,17 @@ def get_data_from_url(strava_url, headers):
     return strava_response.json()
 
 
+def get_activities(headers):
+    now = datetime.now()
+
+    today_midnight = datetime(now.year, now.month, now.day)
+    today_ts = int(today_midnight.timestamp())
+
+    activities_data = get_data_from_url(
+        f'{STRAVA_DEFAULT_URL}/activities?after={today_ts}', headers)
+    print(activities_data)
+
+
 def get_equipments(headers):
 
     athlete_data = get_data_from_url(f'{STRAVA_DEFAULT_URL}/athlete', headers)
@@ -173,17 +185,18 @@ def main():
     try:
         headers = generate_token()
 
-        athlete_data = get_equipments(headers)
-        gears = build_gears(athlete_data)
-        data = build_distance_payload(gears)
-        send_result = writer.send(data)
+        # athlete_data = get_equipments(headers)
+        activities_data = get_activities(headers)
+        # gears = build_gears(athlete_data)
+        # data = build_distance_payload(gears)
+        # send_result = writer.send(data)
 
-        status = send_result.last_response.status_code
-        if status == 200:
-            logging.info("Metrics pushed successfully to Prometheus")
-        else:
-            logging.error(
-                f"Prometheus push failed with status code {status}")
+        # status = send_result.last_response.status_code
+        # if status == 200:
+        #     logging.info("Metrics pushed successfully to Prometheus")
+        # else:
+        #     logging.error(
+        #         f"Prometheus push failed with status code {status}")
 
     except Exception as e:
         logging.exception(f"Pipeline failed: {e}")
