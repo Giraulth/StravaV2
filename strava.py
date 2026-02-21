@@ -1,6 +1,5 @@
 import requests
 import time
-from dotenv import load_dotenv
 import os
 from prometheus_remote_writer import RemoteWriter
 import base64
