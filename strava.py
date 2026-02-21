@@ -1,8 +1,15 @@
 import requests
 import time
+from dotenv import load_dotenv
 import os
 from prometheus_remote_writer import RemoteWriter
 import base64
+import logging
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] [%(funcName)s] %(message)s"
+)
 
 STRAVA_DEFAULT_URL = 'https://www.strava.com/api/v3'
 
@@ -30,10 +37,10 @@ if os.getenv("ENV", "dev") == "dev":
     from dotenv import load_dotenv
     load_dotenv()
 
-CLIENT_ID = os.getenv("CLIENT_ID")
-CLIENT_SECRET = os.getenv("CLIENT_SECRET")
-CODE = os.getenv("CODE")
-REFRESH_TOKEN = os.getenv("REFRESH_TOKEN")
+client_id = os.getenv('CLIENT_ID')
+client_secret = os.getenv('CLIENT_SECRET')
+code = os.getenv('CODE')
+refresh_token = os.getenv('REFRESH_TOKEN')
 GRAFANA_URL = os.getenv("GRAFANA_PROM_URL")
 GRAFANA_USER = os.getenv("GRAFANA_USER_ID")
 GRAFANA_KEY = os.getenv("GRAFANA_API_KEY")
@@ -64,6 +71,11 @@ def generate_token():
 
         token_response_json = token_response.json()
         access_token = token_response_json["access_token"]
+        if access_token:
+            logging.info(
+                f"Strava token successfully retrieved: {access_token[:4]}***")
+        else:
+            logging.error("Failed to retrieve Strava token!")
 
     else:
 
@@ -93,15 +105,20 @@ def get_data_from_url(strava_url, headers):
     return strava_response.json()
 
 
-def get_equipements(headers):
+def get_equipments(headers):
 
     athlete_data = get_data_from_url(f'{STRAVA_DEFAULT_URL}/athlete', headers)
-    equipements = []
+    equipments = []
+    # Count bikes
+    num_bikes = len(athlete_data.get('bikes', []))
+
+    # Count shoes
+    num_shoes = len(athlete_data.get('shoes', []))
     for gear in ['bikes', 'shoes']:
         for data in athlete_data[gear]:
-            bike_id = data['id']
+            gear_id = data['id']
             gear_data = get_data_from_url(
-                f'{STRAVA_DEFAULT_URL}/gear/{bike_id}', headers)
+                f'{STRAVA_DEFAULT_URL}/gear/{gear_id}', headers)
             for value in gear_data:
                 if gear_data[value] is None:
                     gear_data[value] = ''
@@ -116,8 +133,10 @@ def get_equipements(headers):
             for data_to_convert in ['brand_name', 'model_name']:
                 gear_data[data_to_convert] = gear_data[data_to_convert].replace(
                     ' ', '_')
-            equipements.append(gear_data)
-    return equipements
+            equipments.append(gear_data)
+    logging.info(
+        f"Retrieve data for {len(equipments)} equipments ({num_bikes} bikes and {num_shoes} shoes)")
+    return equipments
 
 
 def build_distance_traveled_data(equipments):
@@ -179,10 +198,11 @@ def get_segments(strava_url, headers, data_path=''):
 
 def main():
     headers = generate_token()
-    equipments = get_equipements(headers)
+    equipments = get_equipments(headers)
     data = build_distance_traveled_data(equipments)
-    writer.send(data)
-    print("Metrics pushed successfully!")
+    send_result = writer.send(data)
+    if send_result.last_response.status_code == 200:
+        logging.info("Metrics pushed successfully to Prometheus!")
 
 
 if __name__ == "__main__":
