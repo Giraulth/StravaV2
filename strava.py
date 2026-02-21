@@ -5,6 +5,7 @@ import os
 from prometheus_remote_writer import RemoteWriter
 import base64
 import logging
+from gear import Gear, build_distance_payload, build_gears
 
 logging.basicConfig(
     level=logging.INFO,
@@ -14,13 +15,6 @@ logging.basicConfig(
 STRAVA_DEFAULT_URL = 'https://www.strava.com/api/v3'
 
 NB_KILOMETERS = 3
-BIKE_MAPPING = {
-    1: 'mtb',              # VTT
-    2: 'cyclocross',       # Vélo de cyclo-cross
-    3: 'road_bike',        # Vélo de route
-    4: 'time_trial',       # Vélo de contre-la-montre
-    5: 'gravel_bike'       # Vélo Gravel
-}
 
 WORKOUT_TYPE_MAPPING = {
     0: 'Aucun',
@@ -128,7 +122,7 @@ def get_equipments(headers):
                 gear_data['weight'] = 0
                 gear_data['frame_type'] = 'shoes'
             elif gear == 'bikes':
-                gear_data['frame_type'] = BIKE_MAPPING.get(
+                gear_data['frame_type'] = Gear.BIKE_MAPPING.get(
                     gear_data['frame_type'], '')
             for data_to_convert in ['brand_name', 'model_name']:
                 gear_data[data_to_convert] = gear_data[data_to_convert].replace(
@@ -137,29 +131,6 @@ def get_equipments(headers):
     logging.info(
         f"Retrieve data for {len(equipments)} equipments ({num_bikes} bikes and {num_shoes} shoes)")
     return equipments
-
-
-def build_distance_traveled_data(equipments):
-    data = []
-    timestamp = int(time.time() * 1000)
-
-    for eq in equipments:
-        metric_dict = {
-            "__name__": "distance_traveled",
-            "type": eq["frame_type"],
-            "brand": eq["brand_name"],
-            "model": eq["model_name"],
-            "weight": str(eq["weight"])
-        }
-
-        entry = {
-            "metric": metric_dict,
-            "values": [eq["converted_distance"]],
-            "timestamps": [timestamp]
-        }
-        data.append(entry)
-
-    return data
 
 
 def insert_segments(segment_list):
@@ -197,12 +168,26 @@ def get_segments(strava_url, headers, data_path=''):
 
 
 def main():
-    headers = generate_token()
-    equipments = get_equipments(headers)
-    data = build_distance_traveled_data(equipments)
-    send_result = writer.send(data)
-    if send_result.last_response.status_code == 200:
-        logging.info("Metrics pushed successfully to Prometheus!")
+    logging.info("Starting Strava → Grafana pipeline")
+
+    try:
+        headers = generate_token()
+
+        athlete_data = get_equipments(headers)
+        gears = build_gears(athlete_data)
+        data = build_distance_payload(gears)
+        send_result = writer.send(data)
+
+        status = send_result.last_response.status_code
+        if status == 200:
+            logging.info("Metrics pushed successfully to Prometheus")
+        else:
+            logging.error(
+                f"Prometheus push failed with status code {status}")
+
+    except Exception as e:
+        logging.exception(f"Pipeline failed: {e}")
+        raise
 
 
 if __name__ == "__main__":
