@@ -27,19 +27,17 @@ WORKOUT_TYPE_MAPPING = {
 }
 
 
-load_dotenv()
+if os.getenv("ENV", "dev") == "dev":
+    from dotenv import load_dotenv
+    load_dotenv()
 
-client_id = os.getenv('CLIENT_ID')
-client_secret = os.getenv('CLIENT_SECRET')
-code = os.getenv('CODE')
-refresh_token = os.getenv('REFRESH_TOKEN')
-address = os.getenv('ADDRESS')
-get_equipement = os.getenv('GET_EQUIPEMENT')
-get_starred = os.getenv('GET_STARRED')
-explore = os.getenv('EXPLORE')
-GRAFANA_URL = os.getenv('GRAFANA_PROM_URL')
-GRAFANA_USER = os.environ.get("GRAFANA_USER_ID")
-GRAFANA_KEY = os.environ.get("GRAFANA_API_KEY")
+CLIENT_ID = os.getenv("CLIENT_ID")
+CLIENT_SECRET = os.getenv("CLIENT_SECRET")
+CODE = os.getenv("CODE")
+REFRESH_TOKEN = os.getenv("REFRESH_TOKEN")
+GRAFANA_URL = os.getenv("GRAFANA_PROM_URL")
+GRAFANA_USER = os.getenv("GRAFANA_USER_ID")
+GRAFANA_KEY = os.getenv("GRAFANA_API_KEY")
 access_token = ""
 
 token = base64.b64encode(f"{GRAFANA_USER}:{GRAFANA_KEY}".encode()).decode()

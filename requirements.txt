@@ -1,0 +1,2 @@
+requests>=2.31.0
+prometheus-remote-writer>=0.1.3
