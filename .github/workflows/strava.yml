@@ -30,8 +30,9 @@ jobs:
         CLIENT_SECRET: ${{ secrets.CLIENT_SECRET }}
         CODE: ${{ secrets.CODE }}
         REFRESH_TOKEN: ${{ secrets.REFRESH_TOKEN }}
-        GRAFANA_USER: ${{ secrets.GRAFANA_USER }}
-        GRAFANA_KEY: ${{ secrets.GRAFANA_KEY }}
+        GRAFANA_USER_ID: ${{ secrets.GRAFANA_USER_ID }}
+        GRAFANA_API_KEY: ${{ secrets.GRAFANA_API_KEY }}
+        GRAFANA_PROM_URL: ${{ secrets.GRAFANA_PROM_URL }}
       run: |
         python strava.py
         echo "Strava metrics pushed at $(date)"
