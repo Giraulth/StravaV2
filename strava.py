@@ -1,33 +1,29 @@
 import requests
 import time
-from clickhouse_driver import Client
 from dotenv import load_dotenv
-import geoloc
-
 import os
-
-client = Client('localhost')
+from prometheus_remote_writer import RemoteWriter
+import base64
 
 STRAVA_DEFAULT_URL = 'https://www.strava.com/api/v3'
 
 NB_KILOMETERS = 3
-
 BIKE_MAPPING = {
-    1: 'VTT',
-    2: 'Vélo de cyclo-cross',
-    3: 'Vélo de route',
-    4: 'Vélo de contre-la-montre',
-    5: 'Vélo Gravel'
+    1: 'mtb',              # VTT
+    2: 'cyclocross',       # Vélo de cyclo-cross
+    3: 'road_bike',        # Vélo de route
+    4: 'time_trial',       # Vélo de contre-la-montre
+    5: 'gravel_bike'       # Vélo Gravel
 }
 
 WORKOUT_TYPE_MAPPING = {
-    0 : 'Aucun',
-    1 : 'Course',
-    3 : 'Entraînement',
-    2 : 'Sortie longue',
-    10 : 'Aucun',
-    11 : 'Course',
-    12 : 'Entraînement'
+    0: 'Aucun',
+    1: 'Course',
+    3: 'Entraînement',
+    2: 'Sortie longue',
+    10: 'Aucun',
+    11: 'Course',
+    12: 'Entraînement'
 }
 
 
@@ -41,7 +37,18 @@ address = os.getenv('ADDRESS')
 get_equipement = os.getenv('GET_EQUIPEMENT')
 get_starred = os.getenv('GET_STARRED')
 explore = os.getenv('EXPLORE')
+GRAFANA_URL = os.getenv('GRAFANA_PROM_URL')
+GRAFANA_USER = os.environ.get("GRAFANA_USER_ID")
+GRAFANA_KEY = os.environ.get("GRAFANA_API_KEY")
 access_token = ""
+
+token = base64.b64encode(f"{GRAFANA_USER}:{GRAFANA_KEY}".encode()).decode()
+# Create a RemoteWriter instance
+writer = RemoteWriter(
+    url=GRAFANA_URL,
+    headers={"Authorization": f"Basic {token}"}
+)
+
 
 def generate_token():
 
@@ -75,12 +82,14 @@ def generate_token():
 
         token_response_json = token_response.json()
         with open('.env', 'a') as file:
-            file.write(f"REFRESH_TOKEN='{token_response_json['refresh_token']}'\n")
+            file.write(
+                f"REFRESH_TOKEN='{token_response_json['refresh_token']}'\n")
         access_token = token_response_json["access_token"]
 
     return {
         'Authorization': f'Bearer {access_token}'
     }
+
 
 def get_data_from_url(strava_url, headers):
     strava_response = requests.get(strava_url, headers=headers)
@@ -90,10 +99,12 @@ def get_data_from_url(strava_url, headers):
 def get_equipements(headers):
 
     athlete_data = get_data_from_url(f'{STRAVA_DEFAULT_URL}/athlete', headers)
+    equipements = []
     for gear in ['bikes', 'shoes']:
-        for bike in athlete_data[gear]:
-            bike_id = bike['id']
-            gear_data = get_data_from_url(f'{STRAVA_DEFAULT_URL}/gear/{bike_id}', headers)
+        for data in athlete_data[gear]:
+            bike_id = data['id']
+            gear_data = get_data_from_url(
+                f'{STRAVA_DEFAULT_URL}/gear/{bike_id}', headers)
             for value in gear_data:
                 if gear_data[value] is None:
                     gear_data[value] = ''
@@ -101,24 +112,51 @@ def get_equipements(headers):
             if gear == 'shoes':
                 gear_data['frame_type'] = 0
                 gear_data['weight'] = 0
-                gear_data['frame_type'] = 'Chaussure'
+                gear_data['frame_type'] = 'shoes'
             elif gear == 'bikes':
                 gear_data['frame_type'] = BIKE_MAPPING.get(
                     gear_data['frame_type'], '')
-            client.execute(
-                'INSERT INTO equipement(id, converted_distance, brand_name, model_name, name, frame_type, description, weight) VALUES',
-                [gear_data])
+            for data_to_convert in ['brand_name', 'model_name']:
+                gear_data[data_to_convert] = gear_data[data_to_convert].replace(
+                    ' ', '_')
+            equipements.append(gear_data)
+    return equipements
+
+
+def build_distance_traveled_data(equipments):
+    data = []
+    timestamp = int(time.time() * 1000)
+
+    for eq in equipments:
+        metric_dict = {
+            "__name__": "distance_traveled",
+            "type": eq["frame_type"],
+            "brand": eq["brand_name"],
+            "model": eq["model_name"],
+            "weight": str(eq["weight"])
+        }
+
+        entry = {
+            "metric": metric_dict,
+            "values": [eq["converted_distance"]],
+            "timestamps": [timestamp]
+        }
+        data.append(entry)
+
+    return data
+
 
 def insert_segments(segment_list):
     for segment in segment_list:
-        athlete_url = 'https://www.strava.com/api/v3/segments/' + str(segment['id'])
+        athlete_url = 'https://www.strava.com/api/v3/segments/' + \
+            str(segment['id'])
         athlete_response = requests.get(athlete_url, headers=headers)
         segment = athlete_response.json()
-        print(segment)
         segment['polyline'] = segment['map']['polyline']
         segment['kom'] = segment['xoms']['overall']
         if segment['athlete_segment_stats']['pr_activity_id']:
-            segment['pr_elapsed_time'] = time.strftime("%M:%S", time.gmtime(segment['athlete_segment_stats']['pr_elapsed_time']))
+            segment['pr_elapsed_time'] = time.strftime("%M:%S", time.gmtime(
+                segment['athlete_segment_stats']['pr_elapsed_time']))
             minutes, seconds = segment['pr_elapsed_time'].split(':')
 
             # Format time to match kom
@@ -133,7 +171,6 @@ def insert_segments(segment_list):
         for value in segment:
             if segment[value] is None:
                 segment[value] = ''
-        client.execute('INSERT INTO segment(id, activity_type, name, distance, elevation_profile, effort_count, polyline, kom, city, state, country, pr_elapsed_time, pr_activity_id, start_latlng, end_latlng) VALUES', [segment])
 
 
 def get_segments(strava_url, headers, data_path=''):
@@ -142,15 +179,14 @@ def get_segments(strava_url, headers, data_path=''):
         segment_data = segment_data[data_path]
     insert_segments(segment_data)
 
-headers = generate_token()
-if get_equipement == "1":
-    get_equipements(headers)
 
-if get_starred == "1":
-    get_segments(f'{STRAVA_DEFAULT_URL}/segments/starred', headers)
+def main():
+    headers = generate_token()
+    equipments = get_equipements(headers)
+    data = build_distance_traveled_data(equipments)
+    writer.send(data)
+    print("Metrics pushed successfully!")
 
-if explore == "1":
-    address_coordonates = geoloc.get_coordinates(address)
-    square_coords = geoloc.get_bounding_box(address_coordonates, NB_KILOMETERS)
-    get_segments(f'https://www.strava.com/api/v3/segments/explore?bounds={square_coords[0]}, {square_coords[1]}, '
-                 f'{square_coords[2]}, {square_coords[3]}&activity_type=running', headers, 'segments')
+
+if __name__ == "__main__":
+    main()

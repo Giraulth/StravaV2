@@ -1,7 +1,6 @@
 from geopy.geocoders import Nominatim
 from geopy.point import Point
 from geopy.distance import distance
-import random
 
 
 GEOLOCATOR = Nominatim(user_agent="curl/7.6.1")

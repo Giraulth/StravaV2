@@ -1,6 +1,5 @@
 import folium
 import polyline
-import streamlit as st
 from streamlit_folium import st_folium
 from clickhouse_driver import Client
 from dotenv import load_dotenv
@@ -33,5 +32,5 @@ for index, row in df_kom.iterrows():
 
     folium.Marker(location=start_latlng, popup="Start: " + row['name'], icon=folium.Icon(color='green', icon='circle', prefix='fa')).add_to(folium_map)
     folium.Marker(location=end_latlng, popup="End: " + row['name'], icon=folium.Icon(color='red', icon='flag-checkered', prefix='fa')).add_to(folium_map)
-    
+
 st_folium(folium_map, width=700, height=500)
