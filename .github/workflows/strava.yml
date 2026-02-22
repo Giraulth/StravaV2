@@ -34,6 +34,8 @@ jobs:
         GRAFANA_API_KEY: ${{ secrets.GRAFANA_API_KEY }}
         GRAFANA_PROM_URL: ${{ secrets.GRAFANA_PROM_URL }}
         ENV: PROD
+        UPSTASH_REDIS_REST_URL: ${{ secrets.UPSTASH_REDIS_REST_URL }}
+        UPSTASH_REDIS_REST_TOKEN: ${{ secrets.UPSTASH_REDIS_REST_TOKEN }}
       run: |
         python strava.py
         echo "Strava metrics pushed at $(date)"
