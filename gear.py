@@ -11,12 +11,14 @@ class Gear:
         5: 'gravel_bike'       # Vélo Gravel
     }
 
-    def __init__(self, data: dict, gear_type: str):
+    def __init__(self, data: dict):
         self.raw = data
-        self.type = self._resolve_type(gear_type, data.get("frame_type"))
+        self.type = self._resolve_type(data.get("frame_type"))
         self.brand = self._sanitize(data.get("brand_name"))
         self.model = self._sanitize(data.get("model_name"))
-        self.weight = self._resolve_weight(gear_type, data.get("weight"))
+        self.id = self._sanitize(data.get("id"))
+        self.weight = self._resolve_weight(
+            data.get("frame_type"), data.get("weight"))
         self.distance = data.get("converted_distance", 0)
 
     def _sanitize(self, value):
@@ -24,18 +26,19 @@ class Gear:
             return ""
         return value.replace(" ", "_")
 
-    def _resolve_type(self, gear_type, frame_type):
-        if gear_type == "shoes":
+    def _resolve_type(self, gear_type):
+        if gear_type is None:
             return "shoes"
-        return self.BIKE_MAPPING.get(frame_type, "bike")
+        return self.BIKE_MAPPING.get(gear_type, "bikes")
 
     def _resolve_weight(self, gear_type, weight):
-        if gear_type == "shoes":
+        if gear_type is None:
             return "0"
         return str(weight or "")
 
     def to_prom_labels(self):
         return {
+            "id": self.id,
             "type": self.type,
             "brand": self.brand,
             "model": self.model,
@@ -58,11 +61,9 @@ def build_distance_payload(gears):
     return [gear.to_remote_write(now) for gear in gears]
 
 
-def build_gears(equipments: list):
+def from_dicts(equipments: list):
     gears = []
-
     for eq in equipments:
-        gear_type = "shoes" if eq.get("frame_type") == "shoes" else "bikes"
-        gears.append(Gear(eq, gear_type))
+        gears.append(Gear(eq))
 
     return gears

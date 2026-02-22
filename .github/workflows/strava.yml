@@ -2,7 +2,7 @@ name: Strava Metrics Push
 
 on:
   schedule:
-    - cron: "0 * * * *"
+    - cron: "0 */3 * * *"
   workflow_dispatch:
 
 jobs:
@@ -33,6 +33,7 @@ jobs:
         GRAFANA_USER_ID: ${{ secrets.GRAFANA_USER_ID }}
         GRAFANA_API_KEY: ${{ secrets.GRAFANA_API_KEY }}
         GRAFANA_PROM_URL: ${{ secrets.GRAFANA_PROM_URL }}
+        ENV: PROD
       run: |
         python strava.py
         echo "Strava metrics pushed at $(date)"
