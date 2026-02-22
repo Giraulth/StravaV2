@@ -56,14 +56,14 @@ class Gear:
         }
 
 
-def build_distance_payload(gears):
-    now = int(time.time() * 1000)
-    return [gear.to_remote_write(now) for gear in gears]
+    def build_distance_payload(gears):
+        now = int(time.time() * 1000)
+        return [gear.to_remote_write(now) for gear in gears]
 
 
-def from_dicts(equipments: list):
-    gears = []
-    for eq in equipments:
-        gears.append(Gear(eq))
+    def from_dicts(equipments: list):
+        gears = []
+        for eq in equipments:
+            gears.append(Gear(eq))
 
-    return gears
+        return gears
