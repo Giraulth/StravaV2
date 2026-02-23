@@ -53,3 +53,23 @@ class RedisStore:
         else:
             logger.debug(
                 f"Kudos already sent for {hash_sha256(username)} → {activity_id}")
+
+    def get_kudos(self):
+        cursor = 0
+        result = {}
+
+        while True:
+            cursor, keys = self.redis.scan(
+                cursor=cursor, match="kudos:*", count=100)
+
+            for key in keys:
+                # redis-py renvoie des bytes si decode_responses=False
+                key_str = key.decode() if isinstance(key, bytes) else key
+
+                set_size = self.redis.scard(key)
+                result[key_str] = set_size
+
+            if cursor == 0:
+                break
+
+        return result

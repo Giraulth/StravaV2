@@ -11,6 +11,7 @@ from services.strava_token import generate_token
 
 from models.gear import Gear
 from models.activity import Activity
+from models.activity import Kudos
 
 from redis_db import RedisStore
 
@@ -53,9 +54,9 @@ def process_activities(redis_store, headers, run_extract: bool):
             logger.info(
                 f"Pushing {len(activity.kudoers)} kudos to Redis for activity {hash_sha256(str(activity.id))}"
             )
-            for username in activity.kudoers:
+            for kudos in activity.kudoers:
                 redis_store.sadd_kudos_if_needed(
-                    username, activity.id)
+                    kudos.full_name, activity.id)
 
     return sanitized_activities
 
@@ -71,14 +72,24 @@ def process_gears(redis_store, headers, run_extract: bool):
     return sanitized_gears
 
 
-def push_metrics(sanitized_gears):
-    data = Gear.build_distance_payload(sanitized_gears)
-    send_result = writer.send(data)
-    status = send_result.last_response.status_code
-    if status == 200:
-        logger.info("Metrics pushed successfully to Prometheus")
-    else:
-        logger.error(f"Prometheus push failed with status code {status}")
+def push_metrics(sanitized_gears, sanitized_kudos):
+    def _push(data, metric_name: str):
+        send_result = writer.send(data)
+        status = send_result.last_response.status_code
+        if status == 200:
+            logger.info(
+                f"{metric_name} metrics pushed successfully to Prometheus")
+        else:
+            logger.error(
+                f"{metric_name} metrics push failed with status code {status}")
+
+    # Push Gear distance
+    gear_payload = Gear.build_distance_payload(sanitized_gears)
+    _push(gear_payload, "Gear distance")
+
+    # Push Kudos
+    kudos_payload = Kudos.kudos_redis_to_remote_write(sanitized_kudos)
+    _push(kudos_payload, "Kudos")
 
 
 def main(run_extract=True, run_push=True):
@@ -91,7 +102,8 @@ def main(run_extract=True, run_push=True):
         sanitized_activities = process_activities(
             redis_store, headers, run_extract)
         sanitized_gears = process_gears(redis_store, headers, run_extract)
-        push_metrics(sanitized_gears)
+        sanitized_kudos = redis_store.get_kudos()
+        push_metrics(sanitized_gears, sanitized_kudos)
     except Exception as e:
         logger.exception(f"Pipeline failed: {e}")
         raise

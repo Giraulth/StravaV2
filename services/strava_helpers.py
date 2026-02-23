@@ -1,6 +1,5 @@
-from utils.sanitize import normalize_string, sanitize_strava_data
-from datetime import datetime, timedelta
-from models.activity import Activity
+from utils.sanitize import sanitize_strava_data
+from models.kudos import Kudos
 from utils.time_utils import TimeUtils
 from utils.constant import STRAVA_DEFAULT_URL
 from utils.fixtures import load_fixture
@@ -24,12 +23,8 @@ def fetch_kudos_from_api(activity_id, headers):
     return get_data_from_url(f'{STRAVA_DEFAULT_URL}/activities/{activity_id}/kudos', headers)
 
 
-def sanitize_kudoers_list(kudos_data):
-    sanitized = []
-    for k in kudos_data:
-        full_name = f"{k.get('firstname')}{k.get('lastname')}"
-        sanitized.append(full_name[:-1])
-    return sanitized
+def build_kudoers(kudos_data):
+    return [Kudos(k) for k in kudos_data or []]
 
 
 def get_activities(headers, run_extract=True):
@@ -41,7 +36,7 @@ def get_activities(headers, run_extract=True):
     for act in activities_raw:
         kudos_data = fetch_kudos_from_api(act.get("id"), headers) if run_extract else load_fixture(
             f"fixtures/kudos{act.get('id')}.json")
-        act["kudoers"] = sanitize_kudoers_list(kudos_data)
+        act["kudoers"] = build_kudoers(kudos_data)
         activities_objs.append(act)
 
     return activities_objs

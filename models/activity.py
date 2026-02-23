@@ -1,3 +1,6 @@
+from models.kudos import Kudos
+
+
 class Activity:
 
     def __init__(self, data: dict):
@@ -5,7 +8,12 @@ class Activity:
         self.id = data.get("id")
         self.distance = data.get("distance")
         self.elapsed_time = data.get("elapsed_time")
-        self.kudoers = data.get("kudoers")
+
+        raw_kudoers = data.get("kudoers") or []
+        self.kudoers: list[Kudos] = [
+            Kudos(k) if not isinstance(k, Kudos) else k
+            for k in raw_kudoers
+        ]
 
     def from_dicts(activities_list: list):
         activities = []
