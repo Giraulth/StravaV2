@@ -37,9 +37,11 @@ writer = RemoteWriter(
 
 
 def init_redis(run_push: bool):
-    if run_push:
-        return RedisStore(
-            f"rediss://default:{UPSTASH_REDIS_REST_TOKEN}@{UPSTASH_REDIS_REST_URL}")
+    if run_push:  
+        redis_store = RedisStore(
+            f"rediss://default:{UPSTASH_REDIS_REST_TOKEN}@{UPSTASH_REDIS_REST_URL}:6379")
+        redis_store.get_redis_quota()
+        return redis_store
     logger.warning("Not connected to redis DB to save tokens")
     return None
 
@@ -127,11 +129,13 @@ def push_metrics(sanitized_gears, sanitized_kudos):
 
     # Push Gear distance
     gear_payload = Gear.build_distance_payload(sanitized_gears)
-    _push(gear_payload, "Gear distance")
+    if run_push:
+        _push(gear_payload, "Gear distance")
 
     # Push Kudos
     kudos_payload = Kudos.kudos_redis_to_remote_write(sanitized_kudos)
-    _push(kudos_payload, "Kudos")
+    if run_push:
+        _push(kudos_payload, "Kudos")
 
 
 def main(run_extract=True, run_push=True):
@@ -147,7 +151,7 @@ def main(run_extract=True, run_push=True):
         _ = process_activities(
             redis_store, headers, run_extract, run_push)
         sanitized_gears = process_gears(redis_store, headers, run_extract)
-        sanitized_kudos = redis_store.get_kudos()
+        sanitized_kudos = redis_store.get_kudos() if redis_store else {}
         push_metrics(sanitized_gears, sanitized_kudos)
     except Exception as e:
         logger.exception(f"Pipeline failed: {e}")
@@ -158,7 +162,7 @@ if __name__ == "__main__":
     run_extract = True
     run_push = True
     if os.getenv("ENV") == "DEV":
-        run_extract = True
-        run_push = True
+        run_extract = "RUN_EXTRACT" in os.environ
+        run_push    = "RUN_PUSH" in os.environ
 
     main(run_extract=run_extract, run_push=run_push)

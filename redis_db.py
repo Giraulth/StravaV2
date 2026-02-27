@@ -87,6 +87,28 @@ class RedisStore:
                 break
 
         return result
+    
+    def get_redis_quota(self):
+        info = self.redis.info()
+
+        total_commands = info.get("total_commands_processed", 0)
+        plan_limit = 100_000
+        remaining_commands = plan_limit - total_commands
+
+        used_memory = info.get("used_memory", 0)
+        max_memory = info.get("maxmemory", 0)
+        memory_human = f"{used_memory / 1024:.2f} KB"
+        max_memory_human = f"{max_memory / 1024 / 1024:.2f} MB" if max_memory else "unlimited"
+
+        db0 = info.get("db0", {})
+        keys = db0.get("keys", 0)
+
+        logger.info(
+            f"[REDIS] Commands: {total_commands}/{plan_limit} used | "
+            f"Remaining estimated: {remaining_commands} | "
+            f"Memory: {memory_human}/{max_memory_human} | "
+            f"Keys stored: {keys}"
+        )
 
     def aggregate_activity_by_city(self, activity: Activity):
         city = activity.city or "UNK_CITY"
