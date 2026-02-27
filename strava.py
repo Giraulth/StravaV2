@@ -37,7 +37,7 @@ writer = RemoteWriter(
 
 
 def init_redis(run_push: bool):
-    if run_push:  
+    if run_push:
         redis_store = RedisStore(
             f"rediss://default:{UPSTASH_REDIS_REST_TOKEN}@{UPSTASH_REDIS_REST_URL}:6379")
         redis_store.get_redis_quota()
@@ -163,6 +163,6 @@ if __name__ == "__main__":
     run_push = True
     if os.getenv("ENV") == "DEV":
         run_extract = "RUN_EXTRACT" in os.environ
-        run_push    = "RUN_PUSH" in os.environ
+        run_push = "RUN_PUSH" in os.environ
 
     main(run_extract=run_extract, run_push=run_push)

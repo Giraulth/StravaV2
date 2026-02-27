@@ -87,7 +87,7 @@ class RedisStore:
                 break
 
         return result
-    
+
     def get_redis_quota(self):
         info = self.redis.info()
 
