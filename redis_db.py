@@ -112,7 +112,8 @@ class RedisStore:
 
     def aggregate_activity_by_city(self, activity: Activity):
         city = activity.city or "UNK_CITY"
-        key = f"agg:city:{city}"
+        type = activity.type.lower()
+        key = f"agg:city:{city}:{type}"
 
         pipe = self.redis.pipeline()
         pipe.hgetall(key)

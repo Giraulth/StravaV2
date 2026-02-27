@@ -55,15 +55,14 @@ def generate_token(refresh_token, client_id, client_secret, code):
     get_strava_quota_status(headers=headers)
     return headers
 
-
 def get_strava_quota_status(headers):
     url = "https://www.strava.com/api/v3/athlete"
 
     response = requests.get(url, headers=headers, timeout=5)
 
     if response.status_code != 200:
-        logger.error(
-            f"Failed to fetch rate limit: {response.status_code} {response.text}")
+        logger.error(f"Failed to fetch rate limit: {response.status_code} {response.text}")
+        exit()
 
     limit_header = response.headers.get("X-RateLimit-Limit", "0,0")
     usage_header = response.headers.get("X-RateLimit-Usage", "0,0")

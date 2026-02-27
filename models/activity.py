@@ -17,6 +17,7 @@ class Activity:
         self.gear_id = data.get("gear_id")
         self.comment_count = data.get("comment_count")
         self.kudos_count = data.get("kudos_count")
+        self.type = data.get("type")
         if data.get("has_heartrate"):
             self.average_heartrate = data.get("average_heartrate")
             self.max_hearthrate = data.get("max_heartrate")
