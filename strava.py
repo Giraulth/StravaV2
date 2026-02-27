@@ -39,7 +39,7 @@ writer = RemoteWriter(
 def init_redis(run_push: bool):
     if run_push:  
         redis_store = RedisStore(
-            f"rediss://default:{UPSTASH_REDIS_REST_TOKEN}@{UPSTASH_REDIS_REST_URL}:6379")
+            f"rediss://default:{UPSTASH_REDIS_REST_TOKEN}@{UPSTASH_REDIS_REST_URL}")
         redis_store.get_redis_quota()
         return redis_store
     logger.warning("Not connected to redis DB to save tokens")
