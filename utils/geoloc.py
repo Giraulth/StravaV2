@@ -19,15 +19,19 @@ def get_bounding_box(coords, radius_km):
 
 def reverse_geocode(coords):
     location = GEOLOCATOR.reverse((coords[0], coords[1]))
-
+    geoloc = {}
+    city = "Unknown"
+    code = ""
     if location:
         address = location.raw.get('address', {})
         city = address.get('town', '')
+        code = address.get('ISO3166-2-lvl4', '')
         if city == '':
             city = address.get('village', '')
-        return city
-    else:
-        return "Unknown"
+
+    geoloc["city"] = city
+    geoloc["code"] = code
+    return geoloc
 
 
 def get_coordinates(city_name):

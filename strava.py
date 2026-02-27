@@ -5,6 +5,7 @@ import base64
 
 from utils.logger import logger
 from utils.sanitize import hash_sha256
+from utils.geoloc import reverse_geocode
 
 from services.strava_helpers import get_activities, get_equipments
 from services.strava_token import generate_token
@@ -45,18 +46,23 @@ def init_redis(run_push: bool):
     return None
 
 
-def process_activities(redis_store, headers, run_extract: bool):
+def process_activities(redis_store, headers, run_extract: bool, run_push: bool):
     activities_data = get_activities(headers, run_extract)
+    # print(reverse_geocode(activities_data[0]["start_latlng"]))
     sanitized_activities = Activity.from_dicts(activities_data)
 
-    if redis_store:
+    if redis_store and run_push:
         for activity in sanitized_activities:
-            logger.info(
-                f"Pushing {len(activity.kudoers)} kudos to Redis for activity {hash_sha256(str(activity.id))}"
-            )
-            for kudos in activity.kudoers:
-                redis_store.sadd_kudos_if_needed(
-                    kudos.full_name, activity.id)
+            if redis_store.get_activity_kudos_count(activity.id) != len(activity.kudoers):
+                logger.info(
+                    f"Pushing {len(activity.kudoers)} kudos to Redis for activity {hash_sha256(str(activity.id))}"
+                )
+                for kudos in activity.kudoers:
+                    redis_store.sadd_kudos_if_needed(
+                        kudos.full_name, activity.id)
+                redis_store.set_activity_kudos_count(activity.id, len(activity.kudoers))
+            else:
+                logger.info(f"No kudos change for activity {hash_sha256(str(activity.id))}")
 
     return sanitized_activities
 
@@ -100,7 +106,7 @@ def main(run_extract=True, run_push=True):
         headers = generate_token(
             refresh_token, client_id, client_secret, code) if run_extract else ""
         sanitized_activities = process_activities(
-            redis_store, headers, run_extract)
+            redis_store, headers, run_extract, run_push)
         sanitized_gears = process_gears(redis_store, headers, run_extract)
         sanitized_kudos = redis_store.get_kudos()
         push_metrics(sanitized_gears, sanitized_kudos)

@@ -1,0 +1,20 @@
+[tool.ruff]
+# Max line length for readability
+line-length = 100
+
+# Target Python version
+target-version = "py311"
+
+# Select the most common rules for backend projects
+select = [
+    "E",    # basic Python errors (syntax, exceptions, etc.)
+    "F",    # unused imports/variables
+    "B",    # potential bugs
+    "SIM",  # code simplifications
+    "I",    # import sorting (like isort)
+    "UP",   # modernization (f-strings, walrus operator, etc.)
+    "S"     # security / best practices
+]
+
+# Auto-fixable rules
+fixable = ["I", "F", "SIM", "UP"]

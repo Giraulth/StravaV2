@@ -43,6 +43,15 @@ class RedisStore:
                 f"(km={distance}) → nothing written"
             )
 
+    def set_activity_kudos_count(self, activity_id: str, nb_kudos: int):
+        key = f"kudos_count:{activity_id}"
+        self.redis.set(key, nb_kudos)
+
+    def get_activity_kudos_count(self, activity_id: str) -> int:
+        key = f"kudos_count:{activity_id}"
+        value = self.redis.get(key)
+        return int(value) if value else 0
+
     def sadd_kudos_if_needed(self, username: str, activity_id: str):
         key = f"kudos:{username}"
         added = self.redis.sadd(key, activity_id)
@@ -53,6 +62,8 @@ class RedisStore:
         else:
             logger.debug(
                 f"Kudos already sent for {hash_sha256(username)} → {activity_id}")
+        
+        return added
 
     def get_kudos(self):
         cursor = 0
