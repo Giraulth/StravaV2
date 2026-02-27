@@ -1,15 +1,15 @@
-from utils.sanitize import sanitize_strava_data
+import requests
+
 from models.kudos import Kudos
-from utils.time_utils import TimeUtils
 from utils.constant import STRAVA_DEFAULT_URL
 from utils.fixtures import load_fixture
 from utils.logger import logger
-
-import requests
+from utils.sanitize import sanitize_strava_data
+from utils.time_utils import TimeUtils
 
 
 def get_data_from_url(strava_url, headers):
-    strava_response = requests.get(strava_url, headers=headers)
+    strava_response = requests.get(strava_url, headers=headers, timeout=5)
     return strava_response.json()
 
 
@@ -20,7 +20,8 @@ def fetch_activities_from_api(headers, after_utc):
 
 
 def fetch_kudos_from_api(activity_id, headers):
-    return get_data_from_url(f'{STRAVA_DEFAULT_URL}/activities/{activity_id}/kudos', headers)
+    return get_data_from_url(
+        f'{STRAVA_DEFAULT_URL}/activities/{activity_id}/kudos', headers)
 
 
 def build_kudoers(kudos_data):
@@ -30,12 +31,14 @@ def build_kudoers(kudos_data):
 def get_activities(headers, run_extract=True):
     last_week_utc = TimeUtils.subtract_days_utc(7)
     activities_raw = fetch_activities_from_api(
-        headers, last_week_utc) if run_extract else load_fixture("fixtures/activities.json")
+        headers,
+        last_week_utc) if run_extract else load_fixture("fixtures/activities.json")
     activities_objs = []
 
     for act in activities_raw:
-        kudos_data = fetch_kudos_from_api(act.get("id"), headers) if run_extract else load_fixture(
-            f"fixtures/kudos{act.get('id')}.json")
+        kudos_data = fetch_kudos_from_api(
+            act.get("id"),
+            headers) if run_extract else load_fixture(f"fixtures/kudos{act.get('id')}.json")
         act["kudoers"] = build_kudoers(kudos_data)
         activities_objs.append(act)
 

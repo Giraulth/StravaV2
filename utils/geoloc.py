@@ -1,7 +1,6 @@
+from geopy.distance import distance
 from geopy.geocoders import Nominatim
 from geopy.point import Point
-from geopy.distance import distance
-
 
 GEOLOCATOR = Nominatim(user_agent="curl/7.6.1")
 
@@ -15,6 +14,15 @@ def get_bounding_box(coords, radius_km):
         center, 45)  # 45° is north east direction
 
     return sw_point.latitude, sw_point.longitude, ne_point.latitude, ne_point.longitude
+
+
+def retrieve_geoloc(activities_data):
+    for activity in activities_data:
+        if len(activity["start_latlng"]) == 2:
+            geoloc_infos = reverse_geocode(activity["start_latlng"])
+            activity["code"] = geoloc_infos["code"]
+            activity["city"] = geoloc_infos["city"]
+    return activities_data
 
 
 def reverse_geocode(coords):

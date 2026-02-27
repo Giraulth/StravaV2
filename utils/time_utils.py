@@ -1,4 +1,4 @@
-from datetime import datetime, timezone, timedelta
+from datetime import UTC, datetime, timedelta
 
 
 class TimeUtils:
@@ -9,11 +9,12 @@ class TimeUtils:
 
     @staticmethod
     def today_utc() -> datetime:
-        return datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
+        return datetime.now(UTC).replace(
+            hour=0, minute=0, second=0, microsecond=0)
 
     @staticmethod
     def today_utc_epoch() -> int:
-        today_midnight = datetime.now(timezone.utc).replace(
+        today_midnight = datetime.now(UTC).replace(
             hour=0, minute=0, second=0, microsecond=0
         )
         return TimeUtils.to_epoch(today_midnight)

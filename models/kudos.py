@@ -3,6 +3,7 @@ import time
 
 class Kudos:
     def __init__(self, data: dict):
+
         raw_firstname = data.get("firstname") or ""
         raw_lastname = data.get("lastname") or ""
 

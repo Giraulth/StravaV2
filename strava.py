@@ -1,20 +1,17 @@
-from dotenv import load_dotenv
-import os
-from prometheus_remote_writer import RemoteWriter
 import base64
+import os
 
-from utils.logger import logger
-from utils.sanitize import hash_sha256
-from utils.geoloc import reverse_geocode
+from dotenv import load_dotenv
+from prometheus_remote_writer import RemoteWriter
 
+from models.activity import Activity, Kudos
+from models.gear import Gear
+from redis_db import RedisStore
 from services.strava_helpers import get_activities, get_equipments
 from services.strava_token import generate_token
-
-from models.gear import Gear
-from models.activity import Activity
-from models.activity import Kudos
-
-from redis_db import RedisStore
+from utils.geoloc import retrieve_geoloc
+from utils.logger import logger
+from utils.sanitize import hash_sha256
 
 if os.getenv("ENV", "DEV") == "DEV":
     load_dotenv()
@@ -41,28 +38,67 @@ writer = RemoteWriter(
 
 def init_redis(run_push: bool):
     if run_push:
-        return RedisStore(f"rediss://default:{UPSTASH_REDIS_REST_TOKEN}@{UPSTASH_REDIS_REST_URL}")
+        return RedisStore(
+            f"rediss://default:{UPSTASH_REDIS_REST_TOKEN}@{UPSTASH_REDIS_REST_URL}")
     logger.warning("Not connected to redis DB to save tokens")
     return None
 
 
-def process_activities(redis_store, headers, run_extract: bool, run_push: bool):
+def process_activities(
+        redis_store,
+        headers,
+        run_extract: bool,
+        run_push: bool):
     activities_data = get_activities(headers, run_extract)
-    # print(reverse_geocode(activities_data[0]["start_latlng"]))
+    logger.info(f"Retrieved geoloc for {len(activities_data)} activities")
+    activities_data = retrieve_geoloc(activities_data)
     sanitized_activities = Activity.from_dicts(activities_data)
 
-    if redis_store and run_push:
-        for activity in sanitized_activities:
-            if redis_store.get_activity_kudos_count(activity.id) != len(activity.kudoers):
-                logger.info(
-                    f"Pushing {len(activity.kudoers)} kudos to Redis for activity {hash_sha256(str(activity.id))}"
-                )
+    if not (redis_store and run_push):
+        return sanitized_activities
+
+    pushed_count = 0
+    no_kudos_count = 0
+    updated_kudos_count = 0
+
+    def push_activity(activity):
+        nonlocal pushed_count, no_kudos_count, updated_kudos_count
+        activity_hash = hash_sha256(str(activity.id))
+        try:
+            logger.debug(
+                f"Process activity {activity_hash} with {len(activity.kudoers)} kudos: "
+                f"{[k.full_name for k in activity.kudoers]}")
+
+            activity_key = f"activity:{str(activity.id)}"
+            if not redis_store.redis.exists(activity_key):
+                redis_store.aggregate_activity_by_city(activity)
+                pushed_count += 1
+            else:
+                logger.debug(f"Activity {activity_hash} is already aggregated")
+
+            current_kudos_count = redis_store.get_activity_kudos_count(
+                activity.id)
+            if current_kudos_count != len(activity.kudoers):
+                updated_kudos_count += 1
                 for kudos in activity.kudoers:
                     redis_store.sadd_kudos_if_needed(
                         kudos.full_name, activity.id)
-                redis_store.set_activity_kudos_count(activity.id, len(activity.kudoers))
+                redis_store.set_activity_kudos_count(
+                    activity.id, len(activity.kudoers))
             else:
-                logger.info(f"No kudos change for activity {hash_sha256(str(activity.id))}")
+                no_kudos_count += 1
+                logger.debug(f"No kudos change for activity {activity_hash}")
+
+        except Exception as e:
+            logger.error(
+                f"Failed to push activity {activity_hash} to Redis: {e}")
+
+    for activity in sanitized_activities:
+        push_activity(activity)
+
+    logger.info(
+        f"Pushed {pushed_count} activities to Redis "
+        f"({updated_kudos_count} had kudos updates, {no_kudos_count} no change)")
 
     return sanitized_activities
 
@@ -104,8 +140,11 @@ def main(run_extract=True, run_push=True):
 
     try:
         headers = generate_token(
-            refresh_token, client_id, client_secret, code) if run_extract else ""
-        sanitized_activities = process_activities(
+            refresh_token,
+            client_id,
+            client_secret,
+            code) if run_extract else ""
+        _ = process_activities(
             redis_store, headers, run_extract, run_push)
         sanitized_gears = process_gears(redis_store, headers, run_extract)
         sanitized_kudos = redis_store.get_kudos()

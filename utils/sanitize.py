@@ -1,6 +1,6 @@
-import unicodedata
-import re
 import hashlib
+import re
+import unicodedata
 
 
 def hash_sha256(to_hash: str) -> str:
@@ -32,3 +32,12 @@ def sanitize_strava_data(data):
 
     else:
         return data
+
+
+def decode_redis_hash(hash_bytes):
+    result = {}
+    for k, v in hash_bytes.items():
+        key = k.decode() if isinstance(k, bytes) else k
+        value = v.decode() if isinstance(v, bytes) else v
+        result[key] = value
+    return result

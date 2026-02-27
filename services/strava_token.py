@@ -1,5 +1,7 @@
-import requests
 import os
+
+import requests
+
 from utils.logger import logger
 
 
@@ -15,7 +17,8 @@ def generate_token(refresh_token, client_id, client_secret, code):
                 'code': code,
                 'grant_type': 'refresh_token',
                 'refresh_token': refresh_token
-            }
+            },
+            timeout=5
         )
 
         token_response_json = token_response.json()
@@ -35,7 +38,8 @@ def generate_token(refresh_token, client_id, client_secret, code):
                 'client_secret': client_secret,
                 'code': code,
                 'grant_type': 'authorization_code'
-            }
+            },
+            timeout=5
         )
 
         token_response_json = token_response.json()

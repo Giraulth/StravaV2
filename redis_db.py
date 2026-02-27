@@ -1,7 +1,10 @@
+
 import redis
+
+from models.activity import Activity
 from utils.logger import logger
+from utils.sanitize import decode_redis_hash, hash_sha256
 from utils.time_utils import TimeUtils
-from utils.sanitize import hash_sha256
 
 
 class RedisStore:
@@ -33,12 +36,12 @@ class RedisStore:
 
             pipe.execute()
 
-            logger.info(
+            logger.debug(
                 f"Distance changed → history saved for {gear_id[:4]}*** "
                 f"[km={distance}][date={today_utc_epoch}]"
             )
         else:
-            logger.info(
+            logger.debug(
                 f"No distance change for {gear_id[:4]}*** "
                 f"(km={distance}) → nothing written"
             )
@@ -62,7 +65,7 @@ class RedisStore:
         else:
             logger.debug(
                 f"Kudos already sent for {hash_sha256(username)} → {activity_id}")
-        
+
         return added
 
     def get_kudos(self):
@@ -84,3 +87,79 @@ class RedisStore:
                 break
 
         return result
+
+    def aggregate_activity_by_city(self, activity: Activity):
+        city = activity.city or "UNK_CITY"
+        key = f"agg:city:{city}"
+
+        pipe = self.redis.pipeline()
+        pipe.hgetall(key)
+        raw_existing = pipe.execute()[0]
+
+        existing = decode_redis_hash(raw_existing)
+
+        total_activity = int(existing.get("total_activity", 0))
+        avg_speed = float(existing.get("average_speed", 0))
+        avg_hr = float(existing.get("average_heartrate", 0))
+        max_speed = float(existing.get("max_speed", 0))
+        max_hr = float(existing.get("max_heartrate_max", 0))
+        total_distance = float(existing.get("total_distance", 0))
+        total_elapsed = int(existing.get("total_elapsed", 0))
+        total_elevation = float(existing.get("total_elevation_gain", 0))
+        total_achievement = int(existing.get("total_achievement", 0))
+        total_comments = int(existing.get("total_comment_count", 0))
+        total_kudos = int(existing.get("total_kudos_count", 0))
+
+        new_count = total_activity + 1
+        if total_activity == 0:
+            new_avg_speed = activity.average_speed
+            new_avg_hr = activity.average_heartrate
+        else:
+            new_avg_speed = (avg_speed * total_activity +
+                             activity.average_speed) / new_count
+            new_avg_hr = (avg_hr * total_activity +
+                          activity.average_heartrate) / new_count
+        new_max_speed = max(max_speed, activity.max_speed)
+        new_max_hr = max(max_hr, activity.max_hearthrate)
+        new_total_distance = total_distance + activity.distance
+        new_total_elapsed = total_elapsed + activity.elapsed_time
+        new_total_elevation = total_elevation + activity.total_elevation_gain
+        new_total_achievement = total_achievement + \
+            (activity.achievement_count or 0)
+        new_total_comments = total_comments + (activity.comment_count or 0)
+        new_total_kudos = total_kudos + (activity.kudos_count or 0)
+
+        pipe = self.redis.pipeline()
+        pipe.hset(key, mapping={
+            "total_activity": new_count,
+            "average_speed": new_avg_speed,
+            "average_heartrate": new_avg_hr,
+            "max_speed": new_max_speed,
+            "max_heartrate_max": new_max_hr,
+            "total_distance": new_total_distance,
+            "total_elapsed": new_total_elapsed,
+            "total_elevation_gain": new_total_elevation,
+            "total_achievement": new_total_achievement,
+            "total_comment_count": new_total_comments,
+            "total_kudos_count": new_total_kudos
+        })
+        pipe.execute()
+
+        logger.debug(
+            "Aggregated into city=%s {total_activity=%d, "
+            "avg_speed=%.2f, max_speed=%.2f, total_distance=%.1f, "
+            "total_elapsed=%d, total_elevation=%.1f, "
+            "achievements=%d, comments=%d, kudos=%d}",
+            city,
+            new_count,
+            new_avg_speed,
+            new_max_speed,
+            new_total_distance,
+            new_total_elapsed,
+            new_total_elevation,
+            new_total_achievement,
+            new_total_comments,
+            new_total_kudos
+        )
+
+        self.redis.set(f"activity:{activity.id}", "")

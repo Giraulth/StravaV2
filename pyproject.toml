@@ -13,7 +13,8 @@ select = [
     "SIM",  # code simplifications
     "I",    # import sorting (like isort)
     "UP",   # modernization (f-strings, walrus operator, etc.)
-    "S"     # security / best practices
+    "S",    # security / best practices
+    "T201"  # Forbid print
 ]
 
 # Auto-fixable rules

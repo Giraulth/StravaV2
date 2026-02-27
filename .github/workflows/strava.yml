@@ -24,6 +24,30 @@ jobs:
         pip install -r requirements.txt
         pip install prometheus-remote-writer
 
+    - name: Run ruff linter
+      run: |
+        pip install ruff
+        ruff check .
+
+    - name: Auto-format with autopep8
+      run: |
+        pip install autopep8
+        autopep8 --in-place --aggressive --aggressive --aggressive --recursive .
+
+    - name: Commit and push auto-format changes
+      run: |
+        git config --global user.name "github-actions[bot]"
+        git config --global user.email "github-actions[bot]@users.noreply.github.com"
+        git add .
+        if ! git diff --cached --quiet; then
+          git commit -m "ci: auto-format code with autopep8"
+          git push origin HEAD:${{ github.ref }}
+        else
+          echo "No changes to commit."
+        fi
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
     - name: Run Strava push script
       env:
         CLIENT_ID: ${{ secrets.CLIENT_ID }}
