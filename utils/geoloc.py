@@ -20,7 +20,7 @@ def retrieve_geoloc(activities_data):
     for activity in activities_data:
         if len(activity["start_latlng"]) == 2:
             geoloc_infos = reverse_geocode(activity["start_latlng"])
-            activity["code"] = geoloc_infos["code"]
+            activity["iso_region"] = geoloc_infos["iso_region"]
             activity["city"] = geoloc_infos["city"]
     return activities_data
 
@@ -29,16 +29,16 @@ def reverse_geocode(coords):
     location = GEOLOCATOR.reverse((coords[0], coords[1]))
     geoloc = {}
     city = "Unknown"
-    code = ""
+    iso_region = ""
     if location:
         address = location.raw.get('address', {})
         city = address.get('town', '')
-        code = address.get('ISO3166-2-lvl4', '')
+        iso_region = address.get('ISO3166-2-lvl4', '')
         if city == '':
             city = address.get('village', '')
 
     geoloc["city"] = city
-    geoloc["code"] = code
+    geoloc["iso_region"] = iso_region
     return geoloc
 
 

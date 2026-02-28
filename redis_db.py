@@ -1,4 +1,5 @@
 
+
 import redis
 
 from models.activity import Activity
@@ -61,10 +62,12 @@ class RedisStore:
 
         if added == 1:
             logger.debug(
-                f"Kudos sent for {hash_sha256(username)} → {activity_id}")
+                f"Kudos sent for user:{hash_sha256(username)} "
+                "→ activity_id:{hash_sha256(activity_id)}")
         else:
             logger.debug(
-                f"Kudos already sent for {hash_sha256(username)} → {activity_id}")
+                f"Kudos already sent for user:{hash_sha256(username)} "
+                "→ activity_id:{hash_sha256(activity_id)}")
 
         return added
 
@@ -77,11 +80,35 @@ class RedisStore:
                 cursor=cursor, match="kudos:*", count=100)
 
             for key in keys:
-                # redis-py renvoie des bytes si decode_responses=False
                 key_str = key.decode() if isinstance(key, bytes) else key
 
                 set_size = self.redis.scard(key)
                 result[key_str] = set_size
+
+            if cursor == 0:
+                break
+
+        return result
+
+    def get_agg_object(self, key_pattern):
+        cursor = 0
+        result = {}
+
+        while True:
+            cursor, keys = self.redis.scan(
+                cursor=cursor, match=key_pattern, count=100)
+            for key in keys:
+                key_str = key.decode() if isinstance(key, bytes) else key
+                key_type = self.redis.type(key).decode()
+                if key_type != "hash":
+                    continue
+
+                raw_hash = self.redis.hgetall(key)
+
+                decoded_hash = {k.decode() if isinstance(k, bytes) else k:
+                                v.decode() if isinstance(v, bytes) else v
+                                for k, v in raw_hash.items()}
+                result[key_str] = decoded_hash
 
             if cursor == 0:
                 break
@@ -110,10 +137,21 @@ class RedisStore:
             f"Keys stored: {keys}"
         )
 
-    def aggregate_activity_by_city(self, activity: Activity):
-        city = activity.city or "UNK_CITY"
+    def aggregate_activity_by_key(self, activity: Activity, key_type):
+        if key_type == "city":
+            key_value = activity.city or "UNK_CITY"
+        elif key_type == "day_week":
+            key_value = activity.day_week
+        elif key_type == "iso_region":
+            key_value = activity.iso_region or "UNK_REGION"
+        elif key_type == "gear_id":
+            key_value = activity.gear_id or "UNK_GEAR"
+        else:
+            raise ValueError(
+                "key_type must be 'city' or 'day_week' or 'iso_region' or 'gear_id'")
+
         type = activity.type.lower()
-        key = f"agg:city:{city}:{type}"
+        key = f"agg:{key_type}:{key_value}:{type}"
 
         pipe = self.redis.pipeline()
         pipe.hgetall(key)
@@ -146,6 +184,7 @@ class RedisStore:
                  activity.average_heartrate) /
                 new_count,
                 2)
+
         new_max_speed = max(max_speed, activity.max_speed)
         new_max_hr = max(max_hr, activity.max_hearthrate)
         new_total_distance = total_distance + activity.distance
@@ -173,11 +212,11 @@ class RedisStore:
         pipe.execute()
 
         logger.debug(
-            "Aggregated into city=%s {total_activity=%d, "
-            "avg_speed=%.2f, max_speed=%.2f, total_distance=%.1f, "
-            "total_elapsed=%d, total_elevation=%.1f, "
+            "Aggregated into %s=%s {total_activity=%d, avg_speed=%.2f, max_speed=%.2f, "
+            "total_distance=%.1f, total_elapsed=%d, total_elevation=%.1f, "
             "achievements=%d, comments=%d, kudos=%d}",
-            city,
+            key_type,
+            key_value,
             new_count,
             new_avg_speed,
             new_max_speed,
@@ -186,7 +225,6 @@ class RedisStore:
             new_total_elevation,
             new_total_achievement,
             new_total_comments,
-            new_total_kudos
-        )
+            new_total_kudos)
 
         self.redis.set(f"activity:{activity.id}", "")

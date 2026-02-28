@@ -40,6 +40,7 @@ def get_activities(headers, run_extract=True):
             act.get("id"),
             headers) if run_extract else load_fixture(f"fixtures/kudos{act.get('id')}.json")
         act["kudoers"] = build_kudoers(kudos_data)
+        act["day_week"] = TimeUtils.to_day_week(act["start_date_local"])
         activities_objs.append(act)
 
     return activities_objs

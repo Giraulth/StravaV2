@@ -39,3 +39,9 @@ class TimeUtils:
     def daily_key(prefix: str, id_value: str, dt: datetime = None) -> str:
         date_part = TimeUtils.date_str(dt)
         return f"{prefix}:{id_value}:{date_part}"
+
+    @staticmethod
+    def to_day_week(date_str):
+        date_str_clean = date_str.replace(" ", "")
+        dt = datetime.strptime(date_str_clean, '%Y-%m-%dT%H:%M:%SZ')
+        return dt.strftime('%A')
