@@ -135,13 +135,17 @@ class RedisStore:
 
         new_count = total_activity + 1
         if total_activity == 0:
-            new_avg_speed = activity.average_speed
-            new_avg_hr = activity.average_heartrate
+            new_avg_speed = round(activity.average_speed, 2)
+            new_avg_hr = round(activity.average_heartrate, 2)
         else:
-            new_avg_speed = (avg_speed * total_activity +
-                             activity.average_speed) / new_count
-            new_avg_hr = (avg_hr * total_activity +
-                          activity.average_heartrate) / new_count
+            new_avg_speed = round(
+                (avg_speed * total_activity + activity.average_speed) / new_count, 2)
+            new_avg_hr = round(
+                (avg_hr *
+                 total_activity +
+                 activity.average_heartrate) /
+                new_count,
+                2)
         new_max_speed = max(max_speed, activity.max_speed)
         new_max_hr = max(max_hr, activity.max_hearthrate)
         new_total_distance = total_distance + activity.distance
