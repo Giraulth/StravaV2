@@ -34,10 +34,14 @@ def sanitize_strava_data(data):
         return data
 
 
-def decode_redis_hash(hash_bytes):
+def decode_redis_hash(d: dict):
     result = {}
-    for k, v in hash_bytes.items():
-        key = k.decode() if isinstance(k, bytes) else k
-        value = v.decode() if isinstance(v, bytes) else v
-        result[key] = value
+    for k, v in d.items():
+        if isinstance(k, bytes):
+            k = k.decode()
+        if isinstance(v, bytes):
+            v = v.decode()
+        elif v is None:
+            v = "0"
+        result[k] = int(v)
     return result

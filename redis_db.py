@@ -171,6 +171,12 @@ class RedisStore:
         total_comments = int(existing.get("total_comment_count", 0))
         total_kudos = int(existing.get("total_kudos_count", 0))
 
+        if activity.average_heartrate == 0 and activity.type == "Run":
+            self.redis.set(f"activity:{activity.id}", "")
+            logger.error(
+                f"No hearthrate for activity {hash_sha256(activity.id)}, remove the activity")
+            return 1
+
         new_count = total_activity + 1
         if total_activity == 0:
             new_avg_speed = round(activity.average_speed, 2)
