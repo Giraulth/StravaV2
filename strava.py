@@ -97,6 +97,7 @@ def process_activities(
         except Exception as e:
             logger.error(
                 f"Failed to push activity {activity_hash} to Redis: {e}")
+            raise
 
     for activity in sanitized_activities:
         push_activity(activity)

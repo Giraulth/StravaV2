@@ -43,5 +43,12 @@ def decode_redis_hash(d: dict):
             v = v.decode()
         elif v is None:
             v = "0"
-        result[k] = int(v)
+        try:
+            if "." in v:
+                result[k] = float(v)
+            else:
+                result[k] = int(v)
+        except ValueError:
+            result[k] = 0
+
     return result
