@@ -90,6 +90,18 @@ class RedisStore:
 
         return result
 
+    def get_sanitized_aggs(redis_store, dimensions: list[str]) -> dict:
+        if not redis_store:
+            return {}
+
+        result = {}
+
+        for dim in dimensions:
+            pattern = f"agg:{dim}:*"
+            result[dim] = redis_store.get_agg_object(pattern)
+
+        return result
+
     def get_agg_object(self, key_pattern):
         cursor = 0
         result = {}

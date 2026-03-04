@@ -43,13 +43,17 @@ class Activity:
 
         return activities
 
-    def agg_hashes_to_remote_write(agg_dict: dict):
+    def agg_hashes_to_remote_write(
+        agg_dict: dict,
+        label_name: str,
+    ):
         series = []
         timestamp_ms = int(time.time() * 1000)
 
         for key, fields in agg_dict.items():
             parts = key.split(":")
-            city = parts[2] if len(parts) >= 4 else "unknown"
+
+            label_value = parts[2] if len(parts) > 2 else "unknown"
             activity_type = parts[3] if len(parts) >= 4 else "unknown"
 
             for field, value in fields.items():
@@ -60,8 +64,8 @@ class Activity:
 
                 series.append({
                     "metric": {
-                        "__name__": f"{field}",
-                        "city": city,
+                        "__name__": field,
+                        label_name: label_value,
                         "type": activity_type
                     },
                     "values": [numeric_value],

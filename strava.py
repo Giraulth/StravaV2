@@ -26,6 +26,8 @@ GRAFANA_KEY = os.getenv("GRAFANA_API_KEY")
 UPSTASH_REDIS_REST_URL = os.getenv("UPSTASH_REDIS_REST_URL")
 UPSTASH_REDIS_REST_TOKEN = os.getenv("UPSTASH_REDIS_REST_TOKEN")
 
+AGG_KEY = ["city", "iso_region", "day_week", "gear_id"]
+
 access_token = ""
 
 token = base64.b64encode(f"{GRAFANA_USER}:{GRAFANA_KEY}".encode()).decode()
@@ -73,7 +75,7 @@ def process_activities(
 
             activity_key = f"activity:{str(activity.id)}"
             if not redis_store.redis.exists(activity_key):
-                for agg_key in ["city", "iso_region", "day_week", "gear_id"]:
+                for agg_key in AGG_KEY:
                     logger.debug(f"Aggregate activity using key {agg_key}")
                     redis_store.aggregate_activity_by_key(activity, agg_key)
 
@@ -120,7 +122,10 @@ def process_gears(redis_store, headers, run_extract: bool):
     return sanitized_gears
 
 
-def push_metrics(sanitized_gears, sanitized_kudos, sanitized_cities):
+def push_metrics(
+        sanitized_gears,
+        sanitized_kudos,
+        aggregations: dict[str, dict]):
     def _push(data, metric_name: str):
         send_result = writer.send(data)
         status = send_result.last_response.status_code
@@ -141,9 +146,18 @@ def push_metrics(sanitized_gears, sanitized_kudos, sanitized_cities):
     if run_push:
         _push(kudos_payload, "Kudos")
 
-    cities_payload = Activity.agg_hashes_to_remote_write(sanitized_cities)
-    if run_push:
-        _push(cities_payload, "Cities")
+    # Aggregation Activities
+    for dimension_name, agg_dict in aggregations.items():
+        if not agg_dict:
+            continue
+
+        payload = Activity.agg_hashes_to_remote_write(
+            agg_dict,
+            label_name=dimension_name
+        )
+
+        if run_push:
+            _push(payload, f"Aggregation {dimension_name}")
 
 
 def main(run_extract=True, run_push=True):
@@ -160,9 +174,13 @@ def main(run_extract=True, run_push=True):
             redis_store, headers, run_extract, run_push)
         sanitized_gears = process_gears(redis_store, headers, run_extract)
         sanitized_kudos = redis_store.get_kudos() if redis_store else {}
-        sanitized_cities = redis_store.get_agg_object(
-            "agg:city:*") if redis_store else {}
-        push_metrics(sanitized_gears, sanitized_kudos, sanitized_cities)
+        aggregations = redis_store.get_sanitized_aggs(AGG_KEY)
+
+        push_metrics(
+            sanitized_gears,
+            sanitized_kudos,
+            aggregations
+        )
     except Exception as e:
         logger.exception(f"Pipeline failed: {e}")
         raise
