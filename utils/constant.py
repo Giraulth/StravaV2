@@ -8,3 +8,7 @@ WORKOUT_TYPE_MAPPING = {
     11: 'Course',
     12: 'Entraînement'
 }
+
+DEFAULT_CITY = "UNK_CITY"
+DEFAULT_ISO_REGION = "UNK_REGION"
+DEFAULT_GEAR = "UNK_GEAR"

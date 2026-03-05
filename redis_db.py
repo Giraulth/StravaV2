@@ -3,6 +3,7 @@
 import redis
 
 from models.activity import Activity
+from utils import constant
 from utils.logger import logger
 from utils.sanitize import decode_redis_hash, hash_sha256
 from utils.time_utils import TimeUtils
@@ -151,13 +152,13 @@ class RedisStore:
 
     def aggregate_activity_by_key(self, activity: Activity, key_type):
         if key_type == "city":
-            key_value = activity.city or "UNK_CITY"
+            key_value = activity.city or constant.DEFAULT_CITY
         elif key_type == "day_week":
             key_value = activity.day_week
         elif key_type == "iso_region":
-            key_value = activity.iso_region or "UNK_REGION"
+            key_value = activity.iso_region or constant.DEFAULT_ISO_REGIONE
         elif key_type == "gear_id":
-            key_value = activity.gear_id or "UNK_GEAR"
+            key_value = activity.gear_id or constant.DEFAULT_GEAR
         else:
             raise ValueError(
                 "key_type must be 'city' or 'day_week' or 'iso_region' or 'gear_id'")

@@ -1,6 +1,10 @@
+
 from geopy.distance import distance
+from geopy.exc import GeocoderTimedOut, GeocoderUnavailable
 from geopy.geocoders import Nominatim
 from geopy.point import Point
+
+from utils import constant
 
 GEOLOCATOR = Nominatim(user_agent="curl/7.6.1")
 
@@ -26,20 +30,26 @@ def retrieve_geoloc(activities_data):
 
 
 def reverse_geocode(coords):
-    location = GEOLOCATOR.reverse((coords[0], coords[1]))
-    geoloc = {}
-    city = "Unknown"
-    iso_region = ""
-    if location:
-        address = location.raw.get('address', {})
-        city = address.get('town', '')
-        iso_region = address.get('ISO3166-2-lvl4', '')
-        if city == '':
-            city = address.get('village', '')
+    try:
+        location = GEOLOCATOR.reverse((coords[0], coords[1]), timeout=10)
+        geoloc = {"city": constant.DEFAULT_CITY,
+                  "iso_region": constant.DEFAULT_ISO_REGION}
 
-    geoloc["city"] = city
-    geoloc["iso_region"] = iso_region
-    return geoloc
+        if location:
+            address = location.raw.get("address", {})
+            city = address.get("town") or address.get(
+                "village") or address.get("city") or constant.DEFAULT_CITY
+            iso_region = address.get(
+                "ISO3166-2-lvl4", constant.DEFAULT_ISO_REGION)
+
+            geoloc["city"] = city
+            geoloc["iso_region"] = iso_region
+
+        return geoloc
+
+    except (GeocoderTimedOut, GeocoderUnavailable):
+        return {"city": constant.DEFAULT_CITY,
+                "iso_region": constant.DEFAULT_ISO_REGION}
 
 
 def get_coordinates(city_name):
