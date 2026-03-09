@@ -68,7 +68,7 @@ class RedisStore:
         else:
             logger.debug(
                 f"Kudos already sent for user:{hash_sha256(username)} "
-                "→ activity_id:{hash_sha256(activity_id)}")
+                f"→ activity_id:{hash_sha256(activity_id)}")
 
         return added
 
@@ -156,7 +156,7 @@ class RedisStore:
         elif key_type == "day_week":
             key_value = activity.day_week
         elif key_type == "iso_region":
-            key_value = activity.iso_region or constant.DEFAULT_ISO_REGIONE
+            key_value = activity.iso_region or constant.DEFAULT_ISO_REGION
         elif key_type == "gear_id":
             key_value = activity.gear_id or constant.DEFAULT_GEAR
         else:

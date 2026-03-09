@@ -3,8 +3,8 @@ import re
 import unicodedata
 
 
-def hash_sha256(to_hash: str) -> str:
-    return hashlib.sha256(to_hash.encode()).hexdigest()[:8]
+def hash_sha256(to_hash) -> str:
+    return hashlib.sha256((to_hash).encode()).hexdigest()[:8]
 
 
 def normalize_string(s: str) -> str:
