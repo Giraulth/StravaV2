@@ -1,6 +1,6 @@
 import base64
-import os
 import json
+import os
 
 from dotenv import load_dotenv
 from prometheus_remote_writer import RemoteWriter
@@ -8,7 +8,7 @@ from prometheus_remote_writer import RemoteWriter
 from models.activity import Activity, Kudos
 from models.gear import Gear
 from redis_db import RedisStore
-from services.strava_helpers import get_activities, get_equipments, get_activity
+from services.strava_helpers import get_activities, get_activity, get_equipments
 from services.strava_token import generate_token
 from utils.geoloc import retrieve_geoloc
 from utils.logger import logger
@@ -68,11 +68,11 @@ def reprocess_activity_from_env(
     act = retrieve_geoloc([act])[0]
 
     try:
-        with open(updates_path, "r", encoding="utf-8") as f:
+        with open(updates_path, encoding="utf-8") as f:
             updates = json.load(f)
     except FileNotFoundError:
         logger.warning(
-            f"No updates file found, skipping updates")
+            "No updates file found, skipping updates")
         updates = {}
 
     act.update(updates)
