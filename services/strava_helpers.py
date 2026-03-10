@@ -13,6 +13,12 @@ def get_data_from_url(strava_url, headers):
     return strava_response.json()
 
 
+def fetch_activity_from_api(headers, activity_id):
+    raw_data = get_data_from_url(
+        f'{STRAVA_DEFAULT_URL}/activities/{activity_id}', headers)
+    return sanitize_strava_data(raw_data)
+
+
 def fetch_activities_from_api(headers, after_utc):
     raw_data = get_data_from_url(
         f'{STRAVA_DEFAULT_URL}/activities?after={after_utc}', headers)
@@ -30,20 +36,44 @@ def build_kudoers(kudos_data):
 
 def get_activities(headers, run_extract=True):
     last_week_utc = TimeUtils.subtract_days_utc(7)
-    activities_raw = fetch_activities_from_api(
-        headers,
-        last_week_utc) if run_extract else load_fixture("fixtures/activities.json")
+
+    activities_raw = (
+        fetch_activities_from_api(headers, last_week_utc)
+        if run_extract
+        else load_fixture("fixtures/activities.json")
+    )
+
     activities_objs = []
 
     for act in activities_raw:
-        kudos_data = fetch_kudos_from_api(
-            act.get("id"),
-            headers) if run_extract else load_fixture(f"fixtures/kudos{act.get('id')}.json")
-        act["kudoers"] = build_kudoers(kudos_data)
-        act["day_week"] = TimeUtils.to_day_week(act["start_date_local"])
-        activities_objs.append(act)
+        activities_objs.append(enrich_activity(act, headers, run_extract))
 
     return activities_objs
+
+
+def enrich_activity(act, headers, run_extract=True):
+    activity_id = act["id"]
+
+    kudos_data = (
+        fetch_kudos_from_api(activity_id, headers)
+        if run_extract
+        else load_fixture(f"fixtures/kudos{activity_id}.json")
+    )
+
+    act["kudoers"] = build_kudoers(kudos_data)
+    act["day_week"] = TimeUtils.to_day_week(act["start_date_local"])
+
+    return act
+
+
+def get_activity(headers, activity_id, run_extract=True):
+    act = (
+        fetch_activity_from_api(headers, activity_id)
+        if run_extract
+        else load_fixture(f"fixtures/activity{activity_id}.json")
+    )
+
+    return enrich_activity(act, headers, run_extract)
 
 
 def get_equipments(headers, run_extract):

@@ -64,7 +64,7 @@ class RedisStore:
         if added == 1:
             logger.debug(
                 f"Kudos sent for user:{hash_sha256(username)} "
-                "→ activity_id:{hash_sha256(activity_id)}")
+                f"→ activity_id:{hash_sha256(activity_id)}")
         else:
             logger.debug(
                 f"Kudos already sent for user:{hash_sha256(username)} "
@@ -176,7 +176,7 @@ class RedisStore:
         avg_speed = float(existing.get("average_speed", 0))
         avg_hr = float(existing.get("average_heartrate", 0))
         max_speed = float(existing.get("max_speed", 0))
-        max_hr = float(existing.get("max_heartrate_max", 0))
+        max_hr = float(existing.get("max_heartrate", 0))
         total_distance = float(existing.get("total_distance", 0))
         total_elapsed = int(existing.get("total_elapsed", 0))
         total_elevation = float(existing.get("total_elevation_gain", 0))
@@ -220,7 +220,7 @@ class RedisStore:
             "average_speed": new_avg_speed,
             "average_heartrate": new_avg_hr,
             "max_speed": new_max_speed,
-            "max_heartrate_max": new_max_hr,
+            "max_heartrate": new_max_hr,
             "total_distance": new_total_distance,
             "total_elapsed": new_total_elapsed,
             "total_elevation_gain": new_total_elevation,

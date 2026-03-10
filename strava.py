@@ -1,5 +1,6 @@
 import base64
 import os
+import json
 
 from dotenv import load_dotenv
 from prometheus_remote_writer import RemoteWriter
@@ -7,7 +8,7 @@ from prometheus_remote_writer import RemoteWriter
 from models.activity import Activity, Kudos
 from models.gear import Gear
 from redis_db import RedisStore
-from services.strava_helpers import get_activities, get_equipments
+from services.strava_helpers import get_activities, get_equipments, get_activity
 from services.strava_token import generate_token
 from utils.geoloc import retrieve_geoloc
 from utils.logger import logger
@@ -48,6 +49,84 @@ def init_redis(run_push: bool):
     return None
 
 
+def reprocess_activity_from_env(
+        redis_store,
+        headers,
+        updates_path="fixtures/activity_update.json",
+        confirm=False):
+    activity_id = os.getenv("ACTIVITY_ID")
+    if not activity_id:
+        return None
+
+    if not confirm:
+        logger.warning(
+            f"Activity {activity_id} will not be reprocessed because `confirm=False`"
+        )
+        return None
+
+    act = get_activity(headers, activity_id)
+    act = retrieve_geoloc([act])[0]
+
+    try:
+        with open(updates_path, "r", encoding="utf-8") as f:
+            updates = json.load(f)
+    except FileNotFoundError:
+        logger.warning(
+            f"No updates file found, skipping updates")
+        updates = {}
+
+    act.update(updates)
+    activity_obj = Activity.from_dicts([act])[0]
+
+    redis_store.redis.delete(f"activity:{activity_obj.id}")
+    process_activity(redis_store, activity_obj)
+
+    logger.info(f"Activity {activity_id} reprocessed successfully")
+    return activity_obj
+
+
+def process_activity(redis_store, activity):
+    activity_hash = hash_sha256(str(activity.id))
+
+    pushed = False
+    kudos_updated = False
+
+    try:
+        logger.debug(
+            f"Process activity {activity_hash} with {len(activity.kudoers)} kudos: "
+            f"{[k.full_name for k in activity.kudoers]}")
+
+        activity_key = f"activity:{activity.id}"
+
+        if not redis_store.redis.exists(activity_key):
+            for agg_key in AGG_KEY:
+                logger.debug(f"Aggregate activity using key {agg_key}")
+                redis_store.aggregate_activity_by_key(activity, agg_key)
+
+            pushed = True
+        else:
+            logger.debug(f"Activity {activity_hash} already aggregated")
+
+        current_kudos_count = redis_store.get_activity_kudos_count(activity.id)
+
+        if current_kudos_count != len(activity.kudoers):
+            for kudos in activity.kudoers:
+                redis_store.sadd_kudos_if_needed(
+                    kudos.full_name, str(activity.id))
+
+            redis_store.set_activity_kudos_count(
+                activity.id, len(activity.kudoers))
+            kudos_updated = True
+        else:
+            logger.debug(f"No kudos change for activity {activity_hash}")
+
+    except Exception as e:
+        logger.error(f"Failed to process activity {activity_hash}: {e}")
+        raise
+
+    return pushed, kudos_updated
+
+
 def process_activities(
         redis_store,
         headers,
@@ -65,44 +144,15 @@ def process_activities(
     no_kudos_count = 0
     updated_kudos_count = 0
 
-    def push_activity(activity):
-        nonlocal pushed_count, no_kudos_count, updated_kudos_count
-        activity_hash = hash_sha256(str(activity.id))
-        try:
-            logger.debug(
-                f"Process activity {activity_hash} with {len(activity.kudoers)} kudos: "
-                f"{[k.full_name for k in activity.kudoers]}")
-
-            activity_key = f"activity:{str(activity.id)}"
-            if not redis_store.redis.exists(activity_key):
-                for agg_key in AGG_KEY:
-                    logger.debug(f"Aggregate activity using key {agg_key}")
-                    redis_store.aggregate_activity_by_key(activity, agg_key)
-
-                pushed_count += 1
-            else:
-                logger.debug(f"Activity {activity_hash} is already aggregated")
-
-            current_kudos_count = redis_store.get_activity_kudos_count(
-                activity.id)
-            if current_kudos_count != len(activity.kudoers):
-                updated_kudos_count += 1
-                for kudos in activity.kudoers:
-                    redis_store.sadd_kudos_if_needed(
-                        kudos.full_name, str(activity.id))
-                redis_store.set_activity_kudos_count(
-                    activity.id, len(activity.kudoers))
-            else:
-                no_kudos_count += 1
-                logger.debug(f"No kudos change for activity {activity_hash}")
-
-        except Exception as e:
-            logger.error(
-                f"Failed to push activity {activity_hash} to Redis: {e}")
-            raise
-
     for activity in sanitized_activities:
-        push_activity(activity)
+        pushed, updated = process_activity(redis_store, activity)
+
+        if pushed:
+            pushed_count += 1
+        if updated:
+            updated_kudos_count += 1
+        else:
+            no_kudos_count += 1
 
     logger.info(
         f"Pushed {pushed_count} activities to Redis "
@@ -170,11 +220,15 @@ def main(run_extract=True, run_push=True):
             client_id,
             client_secret,
             code) if run_extract else ""
-        _ = process_activities(
-            redis_store, headers, run_extract, run_push)
+        # _ = process_activities(
+        #     redis_store, headers, run_extract, run_push)
+        activity_id = os.getenv("ACTIVITY_ID", "activity_update")
+        reprocess_activity_from_env(
+            redis_store, headers, f"fixtures/{activity_id}.json")
         sanitized_gears = process_gears(redis_store, headers, run_extract)
         sanitized_kudos = redis_store.get_kudos() if redis_store else {}
-        aggregations = redis_store.get_sanitized_aggs(AGG_KEY)
+        aggregations = redis_store.get_sanitized_aggs(
+            AGG_KEY) if redis_store else {}
 
         push_metrics(
             sanitized_gears,

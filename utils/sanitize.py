@@ -4,7 +4,7 @@ import unicodedata
 
 
 def hash_sha256(to_hash) -> str:
-    return hashlib.sha256((to_hash).encode()).hexdigest()[:8]
+    return hashlib.sha256(str(to_hash).encode()).hexdigest()[:8]
 
 
 def normalize_string(s: str) -> str:
