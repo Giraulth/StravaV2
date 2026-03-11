@@ -48,6 +48,11 @@ jobs:
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+    - name: Run tests
+      run: |
+        pip install pytest
+        pytest
+
     - name: Run Strava push script
       env:
         CLIENT_ID: ${{ secrets.CLIENT_ID }}

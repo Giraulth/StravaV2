@@ -2,3 +2,4 @@
 __pycache__
 fixtures
 .vscode
+tests/__pycache__
