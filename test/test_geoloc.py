@@ -1,7 +1,10 @@
-from unittest.mock import patch, MagicMock
-from geopy.exc import GeocoderTimedOut, GeocoderUnavailable
-from utils.geoloc import reverse_geocode
+from unittest.mock import MagicMock, patch
+
+from geopy.exc import GeocoderTimedOut
+
 from utils import constant
+from utils.geoloc import reverse_geocode
+
 
 def test_reverse_geocode_success():
     coords = (48.8566, 2.3522)

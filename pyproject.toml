@@ -19,3 +19,6 @@ select = [
 
 # Auto-fixable rules
 fixable = ["I", "F", "SIM", "UP"]
+
+[tool.ruff.lint.per-file-ignores]
+"test/*" = ["S101"]
