@@ -23,6 +23,7 @@ def test_reverse_geocode_success():
     assert result["city"] == "Paris"
     assert result["iso_region"] == "FR-IDF"
 
+
 def test_reverse_geocode_none():
     coords = (0, 0)
 
@@ -31,6 +32,7 @@ def test_reverse_geocode_none():
 
     assert result["city"] == constant.DEFAULT_CITY
     assert result["iso_region"] == constant.DEFAULT_ISO_REGION
+
 
 def test_reverse_geocode_timeout():
     coords = (0, 0)
