@@ -51,7 +51,7 @@ jobs:
     - name: Run tests
       run: |
         pip install pytest
-        pytest
+        PYTHONPATH=. pytest
 
     - name: Run Strava push script
       env:
