@@ -1,9 +1,10 @@
+import time
 from unittest.mock import MagicMock, patch
 
 from geopy.exc import GeocoderTimedOut
 
 from utils import constant
-from utils.geoloc import reverse_geocode
+from utils.geoloc import gps_to_remote_write, h3_to_latlng, reduce_polyline, reverse_geocode
 
 
 def test_reverse_geocode_success():
@@ -42,3 +43,98 @@ def test_reverse_geocode_timeout():
 
     assert result["city"] == constant.DEFAULT_CITY
     assert result["iso_region"] == constant.DEFAULT_ISO_REGION
+
+
+def test_decode_polyline():
+    coords = reduce_polyline(
+        "ki{eFvqfiVsBmA`Feh@qg@iX`B}JeCcCqGjIq~@kf@cM{KeHeX`@_GdGkSeBiXtB}YuEkPwFyDeAzAe@pC~DfGc@bIOsGmCcEiD~@oBuEkFhBcBmDiEfAVuDiAuD}NnDaNiIlCyDD_CtJKv@wGhD]YyEzBo@g@uKxGmHpCGtEtI~AuLrHkAcAaIvEgH_EaDR_FpBuBg@sNxHqEtHgLoTpIiCzKNr[sB|Es\\`JyObYeMbGsMnPsAfDxAnD}DBu@bCx@{BbEEyAoD`AmChNoQzMoGhOwX|[yIzBeFKg[zAkIdU_LiHxK}HzEh@vM_BtBg@xGzDbCcF~GhArHaIfByAhLsDiJuC?_HbHd@nL_Cz@ZnEkDDy@hHwJLiCbIrNrIvN_EfAjDWlEnEiAfBxDlFkBfBtEfDaAzBvDKdFx@|@XgJmDsHhAgD`GfElEzOwBnYdBxXgGlSc@bGdHpW|HdJztBnhAgFxc@HnCvBdA",
+        5,
+        8)
+
+    assert coords == {
+        '8828308ae5fffff',
+        '8828308a31fffff',
+        '8828308ac5fffff',
+        '8828308ae7fffff',
+        '8828308aebfffff',
+        '8828308ae9fffff',
+        '8828308a33fffff',
+        '8828308ac7fffff',
+        '8828308135fffff',
+        '8828308a37fffff',
+        '8828308ac9fffff',
+        '8828308123fffff',
+        '8828308aedfffff',
+        '8828308ae1fffff'}
+
+
+def test_decode_empty_polyline():
+    coords = reduce_polyline("")
+    assert coords == set()
+
+
+def test_h3_to_prometheus(monkeypatch):
+
+    # Mock du timestamp
+    fixed_time = 1773423231.502
+
+    monkeypatch.setattr(time, "time", lambda: fixed_time)
+    expected_timestamp = int(fixed_time * 1000)
+
+    h3_cells = {
+        "run": {
+            '8828308ae5fffff': 1,
+            '8828308a31fffff': 1,
+            '8828308ac5fffff': 1,
+            '8828308ae7fffff': 1}}
+    result = h3_to_latlng(h3_cells)
+    assert result == [{'cell': '8828308ae5fffff',
+                       'lat': 37.85765747365914,
+                       'lng': -122.21574064639363,
+                       'count': 1,
+                       'type': 'run'},
+                      {'cell': '8828308a31fffff',
+                       'lat': 37.84595372793507,
+                       'lng': -122.2009949140769,
+                       'count': 1,
+                       'type': 'run'},
+                      {'cell': '8828308ac5fffff',
+                       'lat': 37.84466435135811,
+                       'lng': -122.23962675007617,
+                       'count': 1,
+                       'type': 'run'},
+                      {'cell': '8828308ae7fffff',
+                       'lat': 37.863507840210794,
+                       'lng': -122.22311423912456,
+                       'count': 1,
+                       'type': 'run'}]
+
+    prom_data = gps_to_remote_write(result)
+    assert prom_data == [{'metric': {'__name__': 'h3_cell',
+                                     'cell': '8828308ae5fffff',
+                                     'activity_type': 'run',
+                                     'lat': '37.85765747365914',
+                                     'lng': '-122.21574064639363'},
+                          'values': [1],
+                          'timestamps': [expected_timestamp]},
+                         {'metric': {'__name__': 'h3_cell',
+                                     'cell': '8828308a31fffff',
+                                     'activity_type': 'run',
+                                     'lat': '37.84595372793507',
+                                     'lng': '-122.2009949140769'},
+                          'values': [1],
+                          'timestamps': [expected_timestamp]},
+                         {'metric': {'__name__': 'h3_cell',
+                                     'cell': '8828308ac5fffff',
+                                     'activity_type': 'run',
+                                     'lat': '37.84466435135811',
+                                     'lng': '-122.23962675007617'},
+                          'values': [1],
+                          'timestamps': [expected_timestamp]},
+                         {'metric': {'__name__': 'h3_cell',
+                                     'cell': '8828308ae7fffff',
+                                     'activity_type': 'run',
+                                     'lat': '37.863507840210794',
+                                     'lng': '-122.22311423912456'},
+                          'values': [1],
+                          'timestamps': [expected_timestamp]}]

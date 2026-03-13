@@ -18,10 +18,7 @@ def sanitize_strava_data(data):
     if isinstance(data, dict):
         sanitized = {}
         for key, value in data.items():
-            if key == "map":
-                sanitized[key] = ""
-            else:
-                sanitized[key] = sanitize_strava_data(value)
+            sanitized[key] = sanitize_strava_data(value)
         return sanitized
 
     elif isinstance(data, list):

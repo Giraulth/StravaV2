@@ -22,6 +22,7 @@ class Activity:
         self.type = data.get("type")
         self.day_week = data.get("day_week")
         self.gear_id = data.get("gear_id")
+        self.gps_coords = data.get("gps_coords")
         if data.get("has_heartrate"):
             self.average_heartrate = data.get("average_heartrate")
             self.max_hearthrate = data.get("max_heartrate")

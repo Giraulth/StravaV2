@@ -57,6 +57,10 @@ class RedisStore:
         value = self.redis.get(key)
         return int(value) if value else 0
 
+    def hincrby_global_h3(self, h3_cells, activity_type):
+        for cell in h3_cells:
+            self.redis.hincrby(f"h3:{activity_type}", cell, 1)
+
     def sadd_kudos_if_needed(self, username: str, activity_id: str):
         key = f"kudos:{username}"
         added = self.redis.sadd(key, activity_id)
@@ -71,6 +75,17 @@ class RedisStore:
                 f"→ activity_id:{hash_sha256(activity_id)}")
 
         return added
+
+    def get_all_h3(self):
+        result = {}
+
+        for key in self.redis.scan_iter("h3:*"):
+            activity_type = key.decode().split(":")[1]
+            data = self.redis.hgetall(key)
+
+            result[activity_type] = decode_redis_hash(data)
+
+        return result
 
     def get_kudos(self):
         cursor = 0

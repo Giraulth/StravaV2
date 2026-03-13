@@ -10,7 +10,7 @@ from models.gear import Gear
 from redis_db import RedisStore
 from services.strava_helpers import get_activities, get_activity, get_equipments
 from services.strava_token import generate_token
-from utils.geoloc import retrieve_geoloc
+from utils.geoloc import gps_to_remote_write, h3_to_latlng, retrieve_geoloc
 from utils.logger import logger
 from utils.sanitize import hash_sha256
 
@@ -103,6 +103,10 @@ def process_activity(redis_store, activity):
                 logger.debug(f"Aggregate activity using key {agg_key}")
                 redis_store.aggregate_activity_by_key(activity, agg_key)
 
+            logger.info(
+                f"Add {len(activity.gps_coords)} h3 hexagon for activity {activity_hash}")
+            redis_store.hincrby_global_h3(
+                activity.gps_coords, activity.type.lower())
             pushed = True
         else:
             logger.debug(f"Activity {activity_hash} already aggregated")
@@ -175,6 +179,7 @@ def process_gears(redis_store, headers, run_extract: bool):
 def push_metrics(
         sanitized_gears,
         sanitized_kudos,
+        sanitized_gps,
         aggregations: dict[str, dict]):
     def _push(data, metric_name: str):
         send_result = writer.send(data)
@@ -195,6 +200,11 @@ def push_metrics(
     kudos_payload = Kudos.kudos_redis_to_remote_write(sanitized_kudos)
     if run_push:
         _push(kudos_payload, "Kudos")
+
+    # Push GPS coords
+    gps_payload = gps_to_remote_write(sanitized_gps)
+    if run_push:
+        _push(gps_payload, "GPS coords")
 
     # Aggregation Activities
     for dimension_name, agg_dict in aggregations.items():
@@ -220,19 +230,24 @@ def main(run_extract=True, run_push=True):
             client_id,
             client_secret,
             code) if run_extract else ""
-        # _ = process_activities(
-        #     redis_store, headers, run_extract, run_push)
         activity_id = os.getenv("ACTIVITY_ID", "activity_update")
-        reprocess_activity_from_env(
-            redis_store, headers, f"fixtures/{activity_id}.json")
+        if activity_id != "":
+            reprocess_activity_from_env(
+                redis_store, headers, f"fixtures/{activity_id}.json")
+        else:
+            _ = process_activities(
+                redis_store, headers, run_extract, run_push)
         sanitized_gears = process_gears(redis_store, headers, run_extract)
         sanitized_kudos = redis_store.get_kudos() if redis_store else {}
+        sanitized_gps = h3_to_latlng(
+            redis_store.get_all_h3()) if redis_store else {}
         aggregations = redis_store.get_sanitized_aggs(
             AGG_KEY) if redis_store else {}
 
         push_metrics(
             sanitized_gears,
             sanitized_kudos,
+            sanitized_gps,
             aggregations
         )
     except Exception as e:
