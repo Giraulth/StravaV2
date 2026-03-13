@@ -1,7 +1,7 @@
 import time
-import pytest
 from unittest.mock import MagicMock, patch
 
+import pytest
 from geopy.exc import GeocoderTimedOut
 
 from utils import constant
@@ -110,7 +110,7 @@ def test_h3_to_prometheus(monkeypatch):
                         'count': 1,
                         'type': 'run'}]
 
-    for r, e in zip(result, expected_result):
+    for r, e in zip(result, expected_result, strict=True):
         assert r["cell"] == e["cell"]
         assert r["count"] == e["count"]
         assert r["type"] == e["type"]
@@ -147,7 +147,7 @@ def test_h3_to_prometheus(monkeypatch):
                           'values': [1],
                            'timestamps': [expected_timestamp]}]
 
-    for r, e in zip(prom_data, expected_prom_data):
+    for r, e in zip(prom_data, expected_prom_data, strict=True):
         assert r["metric"]["__name__"] == e["metric"]["__name__"]
         assert r["metric"]["cell"] == e["metric"]["cell"]
         assert r["metric"]["activity_type"] == e["metric"]["activity_type"]
