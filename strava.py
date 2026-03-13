@@ -235,7 +235,7 @@ def main(run_extract=True, run_push=True):
         activity_id = os.getenv("ACTIVITY_ID", "activity_update")
         if activity_id != "":
             reprocess_activity_from_env(
-                redis_store, headers, f"fixtures/{activity_id}.json", True)
+                redis_store, headers, f"fixtures/{activity_id}.json")
         else:
             _ = process_activities(
                 redis_store, headers, run_extract, run_push)
