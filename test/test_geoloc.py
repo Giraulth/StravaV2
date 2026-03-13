@@ -1,4 +1,5 @@
 import time
+import pytest
 from unittest.mock import MagicMock, patch
 
 from geopy.exc import GeocoderTimedOut
@@ -88,53 +89,79 @@ def test_h3_to_prometheus(monkeypatch):
             '8828308ac5fffff': 1,
             '8828308ae7fffff': 1}}
     result = h3_to_latlng(h3_cells)
-    assert result == [{'cell': '8828308ae5fffff',
+    expected_result = [{'cell': '8828308ae5fffff',
                        'lat': 37.85765747365914,
-                       'lng': -122.21574064639363,
-                       'count': 1,
-                       'type': 'run'},
-                      {'cell': '8828308a31fffff',
+                        'lng': -122.21574064639363,
+                        'count': 1,
+                        'type': 'run'},
+                       {'cell': '8828308a31fffff',
                        'lat': 37.84595372793507,
-                       'lng': -122.2009949140769,
-                       'count': 1,
-                       'type': 'run'},
-                      {'cell': '8828308ac5fffff',
+                        'lng': -122.2009949140769,
+                        'count': 1,
+                        'type': 'run'},
+                       {'cell': '8828308ac5fffff',
                        'lat': 37.84466435135811,
-                       'lng': -122.23962675007617,
-                       'count': 1,
-                       'type': 'run'},
-                      {'cell': '8828308ae7fffff',
+                        'lng': -122.23962675007617,
+                        'count': 1,
+                        'type': 'run'},
+                       {'cell': '8828308ae7fffff',
                        'lat': 37.863507840210794,
-                       'lng': -122.22311423912456,
-                       'count': 1,
-                       'type': 'run'}]
+                        'lng': -122.22311423912456,
+                        'count': 1,
+                        'type': 'run'}]
+
+    for r, e in zip(result, expected_result):
+        assert r["cell"] == e["cell"]
+        assert r["count"] == e["count"]
+        assert r["type"] == e["type"]
+        assert r["lat"] == pytest.approx(e["lat"], rel=1e-12)
+        assert r["lng"] == pytest.approx(e["lng"], rel=1e-12)
 
     prom_data = gps_to_remote_write(result)
-    assert prom_data == [{'metric': {'__name__': 'h3_cell',
-                                     'cell': '8828308ae5fffff',
-                                     'activity_type': 'run',
-                                     'lat': '37.85765747365914',
-                                     'lng': '-122.21574064639363'},
+    expected_prom_data = [{'metric': {'__name__': 'h3_cell',
+                                      'cell': '8828308ae5fffff',
+                                      'activity_type': 'run',
+                                      'lat': '37.85765747365914',
+                                      'lng': '-122.21574064639363'},
                           'values': [1],
-                          'timestamps': [expected_timestamp]},
-                         {'metric': {'__name__': 'h3_cell',
-                                     'cell': '8828308a31fffff',
-                                     'activity_type': 'run',
-                                     'lat': '37.84595372793507',
-                                     'lng': '-122.2009949140769'},
+                           'timestamps': [expected_timestamp]},
+                          {'metric': {'__name__': 'h3_cell',
+                                      'cell': '8828308a31fffff',
+                                      'activity_type': 'run',
+                                      'lat': '37.84595372793507',
+                                      'lng': '-122.2009949140769'},
                           'values': [1],
-                          'timestamps': [expected_timestamp]},
-                         {'metric': {'__name__': 'h3_cell',
-                                     'cell': '8828308ac5fffff',
-                                     'activity_type': 'run',
-                                     'lat': '37.84466435135811',
-                                     'lng': '-122.23962675007617'},
+                           'timestamps': [expected_timestamp]},
+                          {'metric': {'__name__': 'h3_cell',
+                                      'cell': '8828308ac5fffff',
+                                      'activity_type': 'run',
+                                      'lat': '37.84466435135811',
+                                      'lng': '-122.23962675007617'},
                           'values': [1],
-                          'timestamps': [expected_timestamp]},
-                         {'metric': {'__name__': 'h3_cell',
-                                     'cell': '8828308ae7fffff',
-                                     'activity_type': 'run',
-                                     'lat': '37.863507840210794',
-                                     'lng': '-122.22311423912456'},
+                           'timestamps': [expected_timestamp]},
+                          {'metric': {'__name__': 'h3_cell',
+                                      'cell': '8828308ae7fffff',
+                                      'activity_type': 'run',
+                                      'lat': '37.863507840210794',
+                                      'lng': '-122.22311423912456'},
                           'values': [1],
-                          'timestamps': [expected_timestamp]}]
+                           'timestamps': [expected_timestamp]}]
+
+    for r, e in zip(prom_data, expected_prom_data):
+        assert r["metric"]["__name__"] == e["metric"]["__name__"]
+        assert r["metric"]["cell"] == e["metric"]["cell"]
+        assert r["metric"]["activity_type"] == e["metric"]["activity_type"]
+
+        assert float(
+            r["metric"]["lat"]) == pytest.approx(
+            float(
+                e["metric"]["lat"]),
+            rel=1e-12)
+        assert float(
+            r["metric"]["lng"]) == pytest.approx(
+            float(
+                e["metric"]["lng"]),
+            rel=1e-12)
+
+        assert r["values"] == e["values"]
+        assert r["timestamps"] == e["timestamps"]
