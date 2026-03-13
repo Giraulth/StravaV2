@@ -165,7 +165,7 @@ class RedisStore:
             f"Keys stored: {keys}"
         )
 
-    def aggregate_activity_by_key(self, activity: Activity, key_type):
+    def aggregate_activity_by_key(self, activity: Activity, key_type) -> bool:
         if key_type == "city":
             key_value = activity.city or constant.DEFAULT_CITY
         elif key_type == "day_week":
@@ -203,7 +203,7 @@ class RedisStore:
             self.redis.set(f"activity:{activity.id}", "")
             logger.error(
                 f"No hearthrate for activity {hash_sha256(activity.id)}, remove the activity")
-            return 1
+            return False
 
         new_count = total_activity + 1
         if total_activity == 0:
@@ -262,3 +262,4 @@ class RedisStore:
             new_total_kudos)
 
         self.redis.set(f"activity:{activity.id}", "")
+        return True

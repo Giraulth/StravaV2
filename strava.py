@@ -101,7 +101,9 @@ def process_activity(redis_store, activity):
         if not redis_store.redis.exists(activity_key):
             for agg_key in AGG_KEY:
                 logger.debug(f"Aggregate activity using key {agg_key}")
-                redis_store.aggregate_activity_by_key(activity, agg_key)
+                ret = redis_store.aggregate_activity_by_key(activity, agg_key)
+                if not ret:
+                    break
 
             logger.info(
                 f"Add {len(activity.gps_coords)} h3 hexagon for activity {activity_hash}")
@@ -233,7 +235,7 @@ def main(run_extract=True, run_push=True):
         activity_id = os.getenv("ACTIVITY_ID", "activity_update")
         if activity_id != "":
             reprocess_activity_from_env(
-                redis_store, headers, f"fixtures/{activity_id}.json")
+                redis_store, headers, f"fixtures/{activity_id}.json", True)
         else:
             _ = process_activities(
                 redis_store, headers, run_extract, run_push)
