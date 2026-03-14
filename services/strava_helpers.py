@@ -27,7 +27,8 @@ def fetch_activities_from_api(headers, after_utc):
 
 def fetch_kudos_from_api(activity_id, headers):
     return get_data_from_url(
-        f'{STRAVA_DEFAULT_URL}/activities/{activity_id}/kudos', headers)
+        f'{STRAVA_DEFAULT_URL}/activities/{activity_id}/kudos?per_page=200',
+        headers)
 
 
 def build_kudoers(kudos_data):
