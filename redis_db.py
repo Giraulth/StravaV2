@@ -201,6 +201,8 @@ class RedisStore:
 
         if activity.average_heartrate == 0 and activity.type == "Run":
             self.redis.set(f"activity:{activity.id}", "")
+            # To be reprocessed later
+            self.redis.sadd("activity:retry", activity.id)
             logger.error(
                 f"No hearthrate for activity {hash_sha256(activity.id)}, remove the activity")
             return False
