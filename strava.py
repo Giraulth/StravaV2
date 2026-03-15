@@ -232,8 +232,8 @@ def main(run_extract=True, run_push=True):
             client_id,
             client_secret,
             code) if run_extract else ""
-        activity_id = os.getenv("ACTIVITY_ID", "activity_update")
-        if activity_id != "":
+        activity_id = os.getenv("ACTIVITY_ID")
+        if activity_id is not None:
             reprocess_activity_from_env(
                 redis_store, headers, f"fixtures/{activity_id}.json")
         else:
