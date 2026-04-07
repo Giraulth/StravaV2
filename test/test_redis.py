@@ -11,7 +11,7 @@ class TestSetDistance:
     @pytest.fixture
     def redis_db(self):
         with patch("redis_db.redis.Redis.from_url"), \
-        patch.object(RedisStore, "__init__", lambda self, url: None):
+                patch.object(RedisStore, "__init__", lambda self, url: None):
             redis_db = RedisStore(url="redis://localhost")
         redis_db.redis = FakeStrictRedis()
         return redis_db
