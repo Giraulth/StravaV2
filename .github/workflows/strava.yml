@@ -50,7 +50,7 @@ jobs:
 
     - name: Run tests
       run: |
-        pip install pytest
+        pip install pytest fakeredis
         PYTHONPATH=. pytest
 
     - name: Run Strava push script
