@@ -1,5 +1,3 @@
-import json
-
 import requests
 
 from models.kudos import Kudos
@@ -72,11 +70,6 @@ def get_all_activities(headers, run_extract=True):
                 headers,
                 True,
                 run_extract))
-
-    output_path = "fixtures/all_activities_output.json"
-
-    with open(output_path, "w", encoding="utf-8") as f:
-        json.dump(activities_objs, f, ensure_ascii=False, indent=2)
 
     return activities_objs
 
