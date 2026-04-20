@@ -1,3 +1,5 @@
+import json
+
 import requests
 
 from models.kudos import Kudos
@@ -9,7 +11,7 @@ from utils.time_utils import TimeUtils
 
 
 def get_data_from_url(strava_url, headers):
-    strava_response = requests.get(strava_url, headers=headers, timeout=5)
+    strava_response = requests.get(strava_url, headers=headers, timeout=15)
     return strava_response.json()
 
 
@@ -25,6 +27,24 @@ def fetch_activities_from_api(headers, after_utc):
     return sanitize_strava_data(raw_data)
 
 
+def fetch_all_activities_from_api(headers):
+    all_activities = []
+    page = 1
+    per_page = 200
+
+    while True:
+        url = f"{STRAVA_DEFAULT_URL}/activities?page={page}&per_page={per_page}"
+        data = get_data_from_url(url, headers)
+
+        if not data:
+            break
+
+        all_activities.extend(sanitize_strava_data(data))
+        page += 1
+
+    return all_activities
+
+
 def fetch_kudos_from_api(activity_id, headers):
     return get_data_from_url(
         f'{STRAVA_DEFAULT_URL}/activities/{activity_id}/kudos?per_page=200',
@@ -35,7 +55,33 @@ def build_kudoers(kudos_data):
     return [Kudos(k) for k in kudos_data or []]
 
 
-def get_activities(headers, run_extract=True):
+def get_all_activities(headers, run_extract=True):
+
+    activities_raw = (
+        fetch_all_activities_from_api(headers)
+        if run_extract
+        else load_fixture("fixtures/all_activities.json")
+    )
+
+    activities_objs = []
+
+    for act in activities_raw:
+        activities_objs.append(
+            enrich_activity(
+                act,
+                headers,
+                True,
+                run_extract))
+
+    output_path = "fixtures/all_activities_output.json"
+
+    with open(output_path, "w", encoding="utf-8") as f:
+        json.dump(activities_objs, f, ensure_ascii=False, indent=2)
+
+    return activities_objs
+
+
+def get_last_activities(headers, run_extract=True):
     last_week_utc = TimeUtils.subtract_days_utc(7)
 
     activities_raw = (
@@ -47,19 +93,26 @@ def get_activities(headers, run_extract=True):
     activities_objs = []
 
     for act in activities_raw:
-        activities_objs.append(enrich_activity(act, headers, run_extract))
+        activities_objs.append(
+            enrich_activity(
+                act,
+                headers,
+                False,
+                run_extract))
 
     return activities_objs
 
 
-def enrich_activity(act, headers, run_extract=True):
+def enrich_activity(act, headers, fetch_all, run_extract=True):
     activity_id = act["id"]
 
-    kudos_data = (
-        fetch_kudos_from_api(activity_id, headers)
-        if run_extract
-        else load_fixture(f"fixtures/kudos{activity_id}.json")
-    )
+    kudos_data = []
+    if not fetch_all:
+        kudos_data = (
+            fetch_kudos_from_api(activity_id, headers)
+            if run_extract
+            else load_fixture(f"fixtures/kudos{activity_id}.json")
+        )
 
     act["kudoers"] = build_kudoers(kudos_data)
     act["day_week"] = TimeUtils.to_day_week(act["start_date_local"])
@@ -74,7 +127,7 @@ def get_activity(headers, activity_id, run_extract=True):
         else load_fixture(f"fixtures/activity{activity_id}.json")
     )
 
-    return enrich_activity(act, headers, run_extract)
+    return enrich_activity(act, headers, False, run_extract)
 
 
 def get_equipments(headers, run_extract):

@@ -8,7 +8,12 @@ from prometheus_remote_writer import RemoteWriter
 from models.activity import Activity, Kudos
 from models.gear import Gear
 from redis_db import RedisStore
-from services.strava_helpers import get_activities, get_activity, get_equipments
+from services.strava_helpers import (
+    get_activity,
+    get_all_activities,
+    get_equipments,
+    get_last_activities,
+)
 from services.strava_token import generate_token
 from utils.geoloc import gps_to_remote_write, h3_to_latlng, retrieve_geoloc
 from utils.logger import logger
@@ -136,9 +141,13 @@ def process_activity(redis_store, activity):
 def process_activities(
         redis_store,
         headers,
+        fetch_all: bool,
         run_extract: bool,
         run_push: bool):
-    activities_data = get_activities(headers, run_extract)
+    if fetch_all:
+        activities_data = get_all_activities(headers, run_extract)
+    else:
+        activities_data = get_last_activities(headers, run_extract)
     logger.info(f"Retrieved geoloc for {len(activities_data)} activities")
     activities_data = retrieve_geoloc(activities_data)
     sanitized_activities = Activity.from_dicts(activities_data)
@@ -222,7 +231,7 @@ def push_metrics(
             _push(payload, f"Aggregation {dimension_name}")
 
 
-def main(run_extract=True, run_push=True):
+def main(run_extract=True, run_push=True, fetch_all=False):
     logger.info("Starting Strava → Grafana pipeline")
     redis_store = init_redis(run_push)
 
@@ -238,7 +247,7 @@ def main(run_extract=True, run_push=True):
                 redis_store, headers, f"fixtures/{activity_id}.json")
         else:
             _ = process_activities(
-                redis_store, headers, run_extract, run_push)
+                redis_store, headers, fetch_all, run_extract, run_push)
         sanitized_gears = process_gears(redis_store, headers, run_extract)
         sanitized_kudos = redis_store.get_kudos() if redis_store else {}
         sanitized_gps = h3_to_latlng(
@@ -260,8 +269,10 @@ def main(run_extract=True, run_push=True):
 if __name__ == "__main__":
     run_extract = True
     run_push = True
+    fetch_all = False
     if os.getenv("ENV") == "DEV":
         run_extract = "RUN_EXTRACT" in os.environ
         run_push = "RUN_PUSH" in os.environ
+        fetch_all = "FETCH_ALL" in os.environ
 
-    main(run_extract=run_extract, run_push=run_push)
+    main(run_extract=run_extract, run_push=run_push, fetch_all=fetch_all)
