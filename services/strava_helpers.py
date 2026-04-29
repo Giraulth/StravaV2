@@ -1,3 +1,5 @@
+from urllib.parse import urlencode
+
 import requests
 
 from models.kudos import Kudos
@@ -13,6 +15,12 @@ def get_data_from_url(strava_url, headers):
     return strava_response.json()
 
 
+def fetch_best_effort(headers, effort_id):
+    raw_data = get_data_from_url(
+        f'{STRAVA_DEFAULT_URL}/segment_efforts/{effort_id}', headers)
+    return sanitize_strava_data(raw_data)
+
+
 def fetch_activity_from_api(headers, activity_id):
     raw_data = get_data_from_url(
         f'{STRAVA_DEFAULT_URL}/activities/{activity_id}', headers)
@@ -25,22 +33,32 @@ def fetch_activities_from_api(headers, after_utc):
     return sanitize_strava_data(raw_data)
 
 
-def fetch_all_activities_from_api(headers):
-    all_activities = []
+def fetch_all_pages(endpoint, headers, params=None, sanitizer=None):
+    all_items = []
     page = 1
     per_page = 200
+    params = params or {}
 
     while True:
-        url = f"{STRAVA_DEFAULT_URL}/activities?page={page}&per_page={per_page}"
+        query_params = {
+            **params,
+            "page": page,
+            "per_page": per_page
+        }
+
+        url = f"{STRAVA_DEFAULT_URL}/{endpoint}?{urlencode(query_params)}"
         data = get_data_from_url(url, headers)
 
         if not data:
             break
 
-        all_activities.extend(sanitize_strava_data(data))
+        if sanitizer:
+            data = sanitizer(data)
+
+        all_items.extend(data)
         page += 1
 
-    return all_activities
+    return all_items
 
 
 def fetch_kudos_from_api(activity_id, headers):
@@ -53,13 +71,22 @@ def build_kudoers(kudos_data):
     return [Kudos(k) for k in kudos_data or []]
 
 
+def get_starred_segments(headers, run_extract=True):
+    segments_raw = fetch_all_pages(
+        endpoint="segments/starred",
+        headers=headers,
+        sanitizer=sanitize_strava_data
+    ) if run_extract else load_fixture("fixtures/starred_segments.json")
+    return segments_raw
+
+
 def get_all_activities(headers, run_extract=True):
 
-    activities_raw = (
-        fetch_all_activities_from_api(headers)
-        if run_extract
-        else load_fixture("fixtures/all_activities.json")
-    )
+    activities_raw = fetch_all_pages(
+        endpoint="activities",
+        headers=headers,
+        sanitizer=sanitize_strava_data
+    ) if run_extract else load_fixture("fixtures/all_activities.json")
 
     activities_objs = []
 

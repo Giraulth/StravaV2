@@ -19,6 +19,43 @@ class RedisStore:
             logger.error(f"Redis connection failed: {e}")
             raise
 
+    def should_fetch_segment(self, segment: dict) -> bool:
+        segment_id = segment["id"]
+
+        effort = segment.get("athlete_pr_effort") or {}
+        effort_id = effort.get("id")
+
+        if not effort_id:
+            return False
+
+        cache_key = f"segment:{segment_id}:best_effort_id"
+
+        cached = self.redis.get(cache_key)
+
+        return not (cached and cached.decode() == str(effort_id))
+
+    def set_segment(self, segment: dict):
+        base_key = f"segment:{segment['activity_type'].lower()}:{segment['id']}"
+
+        pipe = self.redis.pipeline()
+
+        pipe.hset(base_key, mapping={
+            "name": segment.get("name"),
+            "distance": segment.get("distance"),
+            "city": segment.get("city"),
+            "region": segment.get("state"),
+            "effort_count": segment.get("effort_count"),
+            "rank": segment.get("rank"),
+            "pr_elapsed_time": segment.get("pr_elapsed_time"),
+            "pr_date": segment.get("pr_date"),
+            "activity_id": (
+                segment.get("athlete_pr_effort") or {}).get("activity_id")
+        })
+
+        pipe.set(f"{base_key}:best_effort_id", segment.get("best_effort_id"))
+
+        pipe.execute()
+
     def set_distance(self, gear_type: str, gear_id: str, distance: float):
         today_utc_epoch = TimeUtils.today_utc_epoch()
 

@@ -7,12 +7,15 @@ from prometheus_remote_writer import RemoteWriter
 
 from models.activity import Activity, Kudos
 from models.gear import Gear
+from models.segment import Segment
 from redis_db import RedisStore
 from services.strava_helpers import (
+    fetch_best_effort,
     get_activity,
     get_all_activities,
     get_equipments,
     get_last_activities,
+    get_starred_segments,
 )
 from services.strava_token import generate_token
 from utils.geoloc import gps_to_remote_write, h3_to_latlng, retrieve_geoloc
@@ -176,6 +179,62 @@ def process_activities(
     return sanitized_activities
 
 
+def process_segments(redis_store, headers, run_extract: bool):
+    raw_segment_data = get_starred_segments(headers, run_extract)
+
+    segments = []
+
+    new_changes = 0
+    no_changes = 0
+    no_effort = 0
+
+    for segment in raw_segment_data:
+        effort = segment.get("athlete_pr_effort") or {}
+        effort_id = effort.get("id")
+
+        # ❗ cas sans PR
+        if not effort_id:
+            no_effort += 1
+            segments.append(Segment(segment))
+            continue
+
+        # cache hit
+        if redis_store and not redis_store.should_fetch_segment(segment):
+            no_changes += 1
+            segments.append(Segment(segment))
+            continue
+
+        # API call
+        best_effort = fetch_best_effort(headers, effort_id)
+
+        if best_effort and "errors" not in best_effort:
+            segment["effort_count"] = best_effort.get(
+                "athlete_segment_stats", {}
+            ).get("effort_count", 0)
+
+            segment["rank"] = Segment.extract_rank(best_effort)
+            segment["pr_elapsed_time"] = best_effort.get("elapsed_time")
+            segment["pr_date"] = best_effort.get("start_date")
+            segment["best_effort_id"] = effort_id
+
+            if redis_store:
+                redis_store.set_segment(segment)
+
+            new_changes += 1
+
+        segments.append(Segment(segment))
+
+    logger.info(
+        f"Segments processed | "
+        f"new_changes={new_changes} | "
+        f"no_changes={no_changes} | "
+        f"no_effort={no_effort} | "
+        f"total={len(raw_segment_data)}"
+    )
+
+    return segments
+
+
 def process_gears(redis_store, headers, run_extract: bool):
     raw_gear_data = get_equipments(headers, run_extract)
     sanitized_gears = Gear.from_dicts(raw_gear_data)
@@ -242,12 +301,15 @@ def main(run_extract=True, run_push=True, fetch_all=False):
             client_secret,
             code) if run_extract else ""
         activity_id = os.getenv("ACTIVITY_ID")
+        _ = process_segments(
+            redis_store, headers, run_extract)
         if activity_id is not None:
             reprocess_activity_from_env(
                 redis_store, headers, f"fixtures/{activity_id}.json")
         else:
             _ = process_activities(
                 redis_store, headers, fetch_all, run_extract, run_push)
+
         sanitized_gears = process_gears(redis_store, headers, run_extract)
         sanitized_kudos = redis_store.get_kudos() if redis_store else {}
         sanitized_gps = h3_to_latlng(
