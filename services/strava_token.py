@@ -24,6 +24,7 @@ def generate_token(refresh_token, client_id, client_secret, code):
                 timeout=5
             )
 
+            access_token = None
             if token_response.status_code == 200:
                 token_response_json = token_response.json()
                 access_token = token_response_json.get("access_token")
