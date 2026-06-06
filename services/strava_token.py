@@ -1,7 +1,9 @@
 import os
+import time
 
 import requests
 
+from utils.constant import MAX_ATTEMPT
 from utils.logger import logger
 
 
@@ -9,25 +11,33 @@ def generate_token(refresh_token, client_id, client_secret, code):
 
     if refresh_token is not None:
 
-        token_response = requests.post(
-            url='https://www.strava.com/oauth/token',
-            data={
-                'client_id': client_id,
-                'client_secret': client_secret,
-                'code': code,
-                'grant_type': 'refresh_token',
-                'refresh_token': refresh_token
-            },
-            timeout=5
-        )
+        for attempt in range(MAX_ATTEMPT):
+            token_response = requests.post(
+                url='https://www.strava.com/oauth/token',
+                data={
+                    'client_id': client_id,
+                    'client_secret': client_secret,
+                    'code': code,
+                    'grant_type': 'refresh_token',
+                    'refresh_token': refresh_token
+                },
+                timeout=5
+            )
 
-        token_response_json = token_response.json()
-        access_token = token_response_json["access_token"]
-        if access_token:
-            logger.info(
-                f"Strava token successfully retrieved: {access_token[:4]}***")
-        else:
-            logger.error("Failed to retrieve Strava token!")
+            if token_response.status_code == 200:
+                token_response_json = token_response.json()
+                access_token = token_response_json.get("access_token")
+                if access_token:
+                    logger.info(
+                        f"Strava token successfully retrieved: {access_token[:4]}***")
+                else:
+                    logger.error("Failed to retrieve Strava token!")
+
+            if access_token:
+                break
+            else:
+                if attempt < MAX_ATTEMPT - 1:
+                    time.sleep(2 ** attempt)
 
     else:
 
