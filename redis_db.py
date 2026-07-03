@@ -21,6 +21,7 @@ class RedisStore:
 
     def should_fetch_segment(self, segment: dict) -> bool:
         segment_id = segment["id"]
+        activity_type = segment["activity_type"].lower()
 
         effort = segment.get("athlete_pr_effort") or {}
         effort_id = effort.get("id")
@@ -28,8 +29,7 @@ class RedisStore:
         if not effort_id:
             return False
 
-        cache_key = f"segment:{segment_id}:best_effort_id"
-
+        cache_key = f"segment:{activity_type}:{segment_id}:best_effort_id"
         cached = self.redis.get(cache_key)
 
         return not (cached and cached.decode() == str(effort_id))
