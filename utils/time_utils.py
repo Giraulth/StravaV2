@@ -45,3 +45,11 @@ class TimeUtils:
         date_str_clean = date_str.replace(" ", "")
         dt = datetime.strptime(date_str_clean, '%Y-%m-%dT%H:%M:%SZ')
         return dt.strftime('%A')
+
+    @staticmethod
+    def iso_to_epoch_ms(date_str: str) -> int:
+        if not date_str:
+            return None
+
+        dt = datetime.fromisoformat(date_str.replace("Z", "+00:00"))
+        return int(dt.timestamp() * 1000)

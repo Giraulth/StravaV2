@@ -1,3 +1,5 @@
+import time
+from utils.time_utils import TimeUtils
 
 
 class Segment:
@@ -37,3 +39,43 @@ class Segment:
             key=lambda a: a.get("type_id", float("inf"))
         )
         return best.get("rank")
+
+    def segments_redis_to_remote_write(segments):
+        timestamp_ms = int(time.time() * 1000)
+        series = []
+
+        def add(value, labels):
+            series.append({
+                "metric": {
+                    "__name__": "segment_data",
+                    **labels,
+                },
+                "values": [value],
+                "timestamps": [timestamp_ms],
+            })
+
+        for segment in segments:
+
+            labels = {
+                "segment_id": str(segment["id"]),
+                "name": segment.get("name", ""),
+                "activity_type": segment.get("activity_type", ""),
+                "city": segment.get("city", ""),
+                "region": segment.get("state", ""),
+                "country": segment.get("country", ""),
+            }
+
+            add(1, {
+                **labels,
+                "distance": str(segment.get("distance")),
+                "avg_grade": str(segment.get("average_grade")),
+                "max_grade": str(segment.get("maximum_grade")),
+                "elevation_high": str(segment.get("elevation_high")),
+                "elevation_low": str(segment.get("elevation_low")),
+                "pr_elapsed_time": str(segment.get("elapsed_time") or segment.get("pr_time")),
+                "pr_date": TimeUtils.iso_to_epoch_ms(str(segment.get("pr_date"))),
+                "is_kom": str(bool(segment.get("is_kom"))),
+                "rank": str(segment.get("rank") or ""),
+            })
+
+        return series

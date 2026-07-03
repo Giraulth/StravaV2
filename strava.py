@@ -192,37 +192,33 @@ def process_segments(redis_store, headers, run_extract: bool):
         effort = segment.get("athlete_pr_effort") or {}
         effort_id = effort.get("id")
 
-        # ❗ cas sans PR
+        # ❗ Case without PR
         if not effort_id:
             no_effort += 1
-            segments.append(Segment(segment))
             continue
 
         # cache hit
         if redis_store and not redis_store.should_fetch_segment(segment):
             no_changes += 1
-            segments.append(Segment(segment))
-            continue
 
-        # API call
-        best_effort = fetch_best_effort(headers, effort_id)
+        else:
+            # API call
+            best_effort = fetch_best_effort(headers, effort_id)
 
-        if best_effort and "errors" not in best_effort:
-            segment["effort_count"] = best_effort.get(
-                "athlete_segment_stats", {}
-            ).get("effort_count", 0)
+            if best_effort and "errors" not in best_effort:
+                segment["effort_count"] = best_effort.get(
+                    "athlete_segment_stats", {}
+                ).get("effort_count", 0)
 
-            segment["rank"] = Segment.extract_rank(best_effort)
-            segment["pr_elapsed_time"] = best_effort.get("elapsed_time")
-            segment["pr_date"] = best_effort.get("start_date")
-            segment["best_effort_id"] = effort_id
+                segment["rank"] = Segment.extract_rank(best_effort)
+                segment["pr_elapsed_time"] = best_effort.get("elapsed_time")
+                segment["pr_date"] = best_effort.get("start_date")
+                segment["best_effort_id"] = effort_id
 
-            if redis_store:
-                redis_store.set_segment(segment)
+                if redis_store:
+                    redis_store.set_segment(segment)
 
-            new_changes += 1
-
-        segments.append(Segment(segment))
+                new_changes += 1
 
     logger.info(
         f"Segments processed | "
@@ -232,6 +228,7 @@ def process_segments(redis_store, headers, run_extract: bool):
         f"total={len(raw_segment_data)}"
     )
 
+    segments = redis_store.get_segments()
     return segments
 
 
@@ -250,6 +247,7 @@ def push_metrics(
         sanitized_gears,
         sanitized_kudos,
         sanitized_gps,
+        sanitized_segments,
         aggregations: dict[str, dict]):
     def _push(data, metric_name: str):
         send_result = writer.send(data)
@@ -276,6 +274,11 @@ def push_metrics(
     if run_push:
         _push(gps_payload, "GPS coords")
 
+    segments_payload = Segment.segments_redis_to_remote_write(
+        sanitized_segments)
+    if run_push:
+        _push(segments_payload, "Segments")
+
     # Aggregation Activities
     for dimension_name, agg_dict in aggregations.items():
         if not agg_dict:
@@ -301,7 +304,7 @@ def main(run_extract=True, run_push=True, fetch_all=False):
             client_secret,
             code) if run_extract else ""
         activity_id = os.getenv("ACTIVITY_ID")
-        _ = process_segments(
+        sanitized_segments = process_segments(
             redis_store, headers, run_extract)
         if activity_id is not None:
             reprocess_activity_from_env(
@@ -321,6 +324,7 @@ def main(run_extract=True, run_push=True, fetch_all=False):
             sanitized_gears,
             sanitized_kudos,
             sanitized_gps,
+            sanitized_segments,
             aggregations
         )
     except Exception as e:

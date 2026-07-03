@@ -56,6 +56,45 @@ class RedisStore:
 
         pipe.execute()
 
+    def get_segments(self, pattern: str = "segment:*:*") -> list[dict]:
+        """
+        Scan all segments stored in Redis and rebuild them as dicts.
+        """
+
+        segments = []
+        for key in self.redis.scan_iter(match="segment:*"):
+            key = key.decode() if isinstance(key, bytes) else key
+
+            if key.count(":") != 2:
+                continue
+
+            data = self.redis.hgetall(key)
+            if not data:
+                continue
+
+            segment = {
+                k.decode() if isinstance(k, bytes) else k:
+                v.decode() if isinstance(v, bytes) else v
+                for k, v in data.items()
+            }
+
+            # restore metadata from key
+            try:
+                _, activity_type, seg_id = key.split(":", 2)
+                segment["id"] = int(seg_id)
+                segment["activity_type"] = activity_type
+            except ValueError:
+                segment["redis_key"] = key
+
+            # best effort id (stored separately)
+            best_effort = self.redis.get(f"{key}:best_effort_id")
+            if best_effort:
+                segment["best_effort_id"] = best_effort.decode()
+
+            segments.append(segment)
+
+        return segments
+
     def set_distance(self, gear_type: str, gear_id: str, distance: float):
         today_utc_epoch = TimeUtils.today_utc_epoch()
 
