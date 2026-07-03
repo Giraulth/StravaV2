@@ -61,7 +61,7 @@ class Segment:
                 "name": segment.get("name", ""),
                 "activity_type": segment.get("activity_type", ""),
                 "city": segment.get("city", ""),
-                "region": segment.get("state", ""),
+                "region": segment.get("region", ""),
                 "country": segment.get("country", ""),
             }
 
