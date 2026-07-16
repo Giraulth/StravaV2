@@ -33,7 +33,7 @@ class Segment:
         achievements = data.get("achievements") or []
 
         if not achievements:
-            return None
+            return -1
 
         best = min(
             achievements,
